@@ -12,7 +12,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { registerUser, loginUser } from '@/storage/authStore';
+import { registerUser, loginUser } from '@/storage/authstore';
 
 interface AuthScreenProps {
   onAuthSuccess: () => void;
