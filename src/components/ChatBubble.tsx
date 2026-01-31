@@ -41,7 +41,19 @@ export function ChatBubble({ text, isUser, timestamp, imageUri, extractedText, p
     } else {
       setIsSpeaking(true);
       try {
-        await SpeechToTextService.speak(text, 'en-IN', () => {
+        // Map preferred language to language code
+        let languageCode = 'en-IN'; // default English (India)
+        if (preferredLanguage === 'Hindi' || preferredLanguage === 'hi-IN') {
+          languageCode = 'hi-IN';
+        } else if (preferredLanguage === 'Marathi') {
+          languageCode = 'mr-IN';
+        } else if (preferredLanguage === 'Tamil') {
+          languageCode = 'ta-IN';
+        } else if (preferredLanguage === 'Telugu') {
+          languageCode = 'te-IN';
+        }
+
+        await SpeechToTextService.speak(text, languageCode, () => {
           setIsSpeaking(false);
         });
       } catch (error) {

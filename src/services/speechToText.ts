@@ -181,24 +181,56 @@ export class SpeechToTextService {
     return false;
   }
 
-  // Text-to-Speech (for AI responses)
+  // Text-to-Speech (for AI responses) - Supports Hindi and English
   static async speak(text: string, language: string = 'en-IN', onDone?: () => void): Promise<void> {
     try {
-      await Speech.speak(text, {
-        language: language,
-        pitch: 1.0,
-        rate: 1.0,
-      });
+      // Map language names to language codes
+      const languageMap: { [key: string]: string } = {
+        'English': 'en-IN',
+        'en-IN': 'en-IN',
+        'en-US': 'en-US',
+        'Hindi': 'hi-IN',
+        'hi-IN': 'hi-IN',
+        'Marathi': 'mr-IN',
+        'mr-IN': 'mr-IN',
+        'Tamil': 'ta-IN',
+        'ta-IN': 'ta-IN',
+        'Telugu': 'te-IN',
+        'te-IN': 'te-IN',
+        'Kannada': 'kn-IN',
+        'kn-IN': 'kn-IN',
+        'Malayalam': 'ml-IN',
+        'ml-IN': 'ml-IN',
+        'Gujarati': 'gu-IN',
+        'gu-IN': 'gu-IN',
+        'Punjabi': 'pa-IN',
+        'pa-IN': 'pa-IN',
+        'Bengali': 'bn-IN',
+        'bn-IN': 'bn-IN',
+      };
 
-      if (onDone) {
-        // Note: This is approximate - Expo Speech doesn't have a perfect
-        // completion callback
-        const estimatedDuration = (text.length / 150) * 1000; // Rough estimate
-        setTimeout(onDone, estimatedDuration);
-      }
+      const languageCode = languageMap[language] || 'en-IN';
+
+      console.log(`🔊 Speaking in ${language} (${languageCode})`);
+
+      await Speech.speak(text, {
+        language: languageCode,
+        pitch: 1.0,
+        rate: 0.9, // Slightly slower for clarity
+        onDone: onDone,
+      });
     } catch (error) {
-      console.error('Text-to-speech error:', error);
+      console.error('❌ Text-to-speech error:', error);
     }
+  }
+
+  // Speak with explicit language selection (Hindi or English)
+  static async speakHindi(text: string, onDone?: () => void): Promise<void> {
+    return this.speak(text, 'hi-IN', onDone);
+  }
+
+  static async speakEnglish(text: string, onDone?: () => void): Promise<void> {
+    return this.speak(text, 'en-IN', onDone);
   }
 
   static async stopSpeaking(): Promise<void> {

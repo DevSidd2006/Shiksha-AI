@@ -40,7 +40,8 @@ EXPO_PUBLIC_API_URL=http://10.0.2.2:3000
 |---------|-------------|
 | 🤖 AI Tutor | Chat with vision-capable AI |
 | 📸 Image Analysis | Snap textbook problems for explanations |
-| 📝 Notes | Create study notes |
+| � Text-to-Speech | Hear responses in Hindi, English & more |
+| �📝 Notes | Create study notes |
 | 🎴 Flashcards | Interactive revision cards |
 | ❓ Quizzes | Test your knowledge |
 | 📊 Progress | Track learning journey |
@@ -70,6 +71,29 @@ backend/
 | llama3.2:3b | Primary tutor | `ollama pull llama3.2:3b` |
 | qwen3-vl:2b | Image analysis | `ollama pull qwen3-vl:2b` |
 | gemma3:1b | OCR fallback | `ollama pull gemma3:1b` |
+
+---
+
+## Text-to-Speech (Multilingual)
+
+Built-in speech synthesis for AI responses. **No additional setup required.**
+
+```bash
+# Test TTS configuration
+node test-tts.js english "Hello, this is a test"
+node test-tts.js hindi "नमस्ते, यह एक परीक्षण है"
+```
+
+**How to use in app:**
+1. Tap speaker icon 🔊 on any tutor response
+2. Audio plays in your preferred language
+3. Change language in Settings → adjust playback language
+4. Rate: 0.9 (slightly slower for clarity)
+
+**Supported Languages:**
+- English (en-IN) / US English (en-US)
+- Hindi (hi-IN)
+- Marathi, Tamil, Telugu, Kannada, Malayalam, Gujarati, Punjabi, Bengali
 
 ---
 
