@@ -240,9 +240,23 @@ EXPO_PUBLIC_ENABLE_SPEECH=true
 # Vision model for image analysis
 ollama pull qwen3-vl:2b
 
-# LLM for text generation
-ollama pull mistral
+# LLM for text generation (Standard: mistral or llama3.2:3b)
+ollama pull llama3.2:3b
 ```
+
+### 🌍 Multilingual Support (NLLB-200)
+For translation, we use a dedicated Python service with the NLLB-200 model for better accuracy than standard LLMs.
+
+**Setup**:
+1. Install Python dependencies:
+   ```bash
+   pip install transformers torch fastapi uvicorn pydantic
+   ```
+2. Start the translation service:
+   ```bash
+   python backend/translator_service.py
+   ```
+   *This service runs on port 3001 and is used by the main Node.js backend.*
 
 3. **Verify Installation**:
 ```bash

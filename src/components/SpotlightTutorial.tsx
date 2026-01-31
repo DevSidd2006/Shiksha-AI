@@ -13,6 +13,7 @@ import {
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export interface SpotlightStep {
+    targetId?: string;
     title: string;
     description: string;
     targetArea?: {
@@ -27,30 +28,28 @@ export interface SpotlightStep {
 
 interface SpotlightTutorialProps {
     visible: boolean;
-    currentStep: number;
-    totalSteps: number;
-    stepData: SpotlightStep;
-    onNext: () => void;
-    onSkip: () => void;
+    steps: SpotlightStep[];
     onFinish: () => void;
 }
 
 export function SpotlightTutorial({
     visible,
-    currentStep,
-    totalSteps,
-    stepData,
-    onNext,
-    onSkip,
+    steps,
     onFinish,
 }: SpotlightTutorialProps) {
+    const [currentStep, setCurrentStep] = useState(0);
+    
+    // Safety check for steps
+    const stepData = (steps && steps.length > 0 && steps[currentStep]) ? steps[currentStep] : null;
+    const totalSteps = steps ? steps.length : 0;
     const isLastStep = currentStep === totalSteps - 1;
+
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const pulseAnim = useRef(new Animated.Value(1)).current;
     const tooltipSlide = useRef(new Animated.Value(30)).current;
 
     useEffect(() => {
-        if (visible) {
+        if (visible && stepData) {
             // Reset animations
             fadeAnim.setValue(0);
             tooltipSlide.setValue(30);
@@ -89,9 +88,24 @@ export function SpotlightTutorial({
         }
     }, [visible, currentStep]);
 
-    const progress = ((currentStep + 1) / totalSteps) * 100;
+    if (!visible || !stepData) return null;
 
-    // Calculate tooltip position - always center it
+    const onNext = () => {
+        if (isLastStep) {
+            onFinish();
+            setCurrentStep(0);
+        } else {
+            setCurrentStep(prev => prev + 1);
+        }
+    };
+
+    const onSkip = () => {
+        onFinish();
+        setCurrentStep(0);
+    };
+
+    const progress = totalSteps > 0 ? ((currentStep + 1) / totalSteps) * 100 : 0;
+
     const getTooltipStyle = () => {
         return {
             top: SCREEN_HEIGHT / 2 - 150,
@@ -100,10 +114,8 @@ export function SpotlightTutorial({
         };
     };
 
-    // Get arrow position
     const getArrowStyle = () => {
-        if (!stepData.targetArea || !stepData.arrowDirection) return null;
-
+        if (!stepData?.targetArea || !stepData?.arrowDirection) return null;
         const { x, y, width, height } = stepData.targetArea;
         const direction = stepData.arrowDirection;
 
@@ -177,15 +189,13 @@ export function SpotlightTutorial({
             onRequestClose={onSkip}
         >
             <View style={styles.overlay}>
-                {/* Dark overlay with spotlight cutout */}
                 <Animated.View
                     style={[
                         styles.backdrop,
                         { opacity: fadeAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 0.9] }) }
                     ]}
                 >
-                    {/* Spotlight effect on target area */}
-                    {stepData.targetArea && (
+                    {stepData?.targetArea && (
                         <Animated.View
                             style={[
                                 styles.spotlight,
@@ -201,8 +211,7 @@ export function SpotlightTutorial({
                     )}
                 </Animated.View>
 
-                {/* Arrow pointing to target */}
-                {stepData.arrowDirection && getArrowStyle() && (
+                {stepData?.arrowDirection && getArrowStyle() && (
                     <Animated.View
                         style={[
                             getArrowStyle(),
@@ -211,7 +220,6 @@ export function SpotlightTutorial({
                     />
                 )}
 
-                {/* Tooltip */}
                 <Animated.View
                     style={[
                         styles.tooltipContainer,
@@ -223,7 +231,6 @@ export function SpotlightTutorial({
                     ]}
                 >
                     <View style={styles.tooltip}>
-                        {/* Progress indicator */}
                         <View style={styles.progressContainer}>
                             <View style={styles.progressBarBackground}>
                                 <View
@@ -238,11 +245,9 @@ export function SpotlightTutorial({
                             </Text>
                         </View>
 
-                        {/* Content */}
-                        <Text style={styles.title}>{stepData.title}</Text>
-                        <Text style={styles.description}>{stepData.description}</Text>
-
-                        {/* Buttons */}
+                        <Text style={styles.title}>{stepData?.title}</Text>
+                        <Text style={styles.description}>{stepData?.description}</Text>
+                        
                         <View style={styles.buttonRow}>
                             <TouchableOpacity
                                 onPress={onSkip}
@@ -252,7 +257,7 @@ export function SpotlightTutorial({
                                 <Text style={styles.skipButtonText}>Skip</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
-                                onPress={isLastStep ? onFinish : onNext}
+                                onPress={onNext}
                                 style={styles.nextButton}
                                 activeOpacity={0.8}
                             >
@@ -280,13 +285,8 @@ const styles = StyleSheet.create({
         position: 'absolute',
         borderRadius: 12,
         borderWidth: 3,
-        borderColor: '#2196F3',
+        borderColor: '#6366F1',
         backgroundColor: 'transparent',
-        shadowColor: '#2196F3',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.8,
-        shadowRadius: 20,
-        elevation: 10,
     },
     tooltipContainer: {
         position: 'absolute',
@@ -311,31 +311,31 @@ const styles = StyleSheet.create({
     progressBarBackground: {
         flex: 1,
         height: 4,
-        backgroundColor: '#E3F2FD',
+        backgroundColor: '#EEF2FF',
         borderRadius: 2,
         overflow: 'hidden',
     },
     progressBarFill: {
         height: '100%',
-        backgroundColor: '#2196F3',
+        backgroundColor: '#6366F1',
         borderRadius: 2,
     },
     stepCounter: {
         fontSize: 12,
-        color: '#2196F3',
+        color: '#6366F1',
         fontWeight: '700',
         minWidth: 35,
     },
     title: {
         fontSize: 20,
         fontWeight: 'bold',
-        color: '#1a1a1a',
+        color: '#1E293B',
         marginBottom: 8,
         lineHeight: 26,
     },
     description: {
         fontSize: 14,
-        color: '#666',
+        color: '#64748B',
         lineHeight: 20,
         marginBottom: 20,
     },
@@ -349,27 +349,22 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         borderRadius: 10,
         borderWidth: 1.5,
-        borderColor: '#E0E0E0',
+        borderColor: '#E2E8F0',
         alignItems: 'center',
-        backgroundColor: '#FAFAFA',
+        backgroundColor: '#F8FAFC',
     },
     skipButtonText: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#666',
+        color: '#64748B',
     },
     nextButton: {
         flex: 1,
         paddingVertical: 12,
         paddingHorizontal: 16,
         borderRadius: 10,
-        backgroundColor: '#2196F3',
+        backgroundColor: '#6366F1',
         alignItems: 'center',
-        shadowColor: '#2196F3',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 4,
     },
     nextButtonText: {
         fontSize: 14,

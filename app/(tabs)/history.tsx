@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,10 +9,17 @@ import {
   StatusBar,
   Modal,
   ScrollView,
+  Platform,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { getAllChats, deleteAllChats, getFullChat, deleteChat } from '@/storage/chatStore';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
+import { Colors, Fonts, Shadows, Spacing, BorderRadius } from '@/styles/designSystem';
+
+const { width } = Dimensions.get('window');
 
 interface ChatHistory {
   id: string;
@@ -20,6 +27,8 @@ interface ChatHistory {
   timestamp: Date;
   messageCount: number;
 }
+
+const INDIGO_GRADIENT = ['#6366F1', '#4F46E5'];
 
 export default function HistoryScreen() {
   const [chats, setChats] = useState<ChatHistory[]>([]);
@@ -34,12 +43,15 @@ export default function HistoryScreen() {
   );
 
   const loadHistory = async () => {
-    const allChats = await getAllChats();
-    setChats(allChats);
+    try {
+      const allChats = await getAllChats();
+      setChats(allChats || []);
+    } catch (error) {
+      console.error('Error loading history:', error);
+    }
   };
 
   const handleChatPress = async (chat: ChatHistory) => {
-    // Load full chat details
     const fullChat = await getFullChat(chat.id);
     if (fullChat) {
       setSelectedChat(fullChat);
@@ -65,130 +77,107 @@ export default function HistoryScreen() {
     );
   };
 
-  const formatDate = (date: Date) => {
+  const formatDate = (date: any) => {
+    if (!date) return '';
+    const d = new Date(date);
     const now = new Date();
-    const diff = now.getTime() - new Date(date).getTime();
+    const diff = now.getTime() - d.getTime();
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
 
     if (days === 0) {
-      const d = new Date(date);
-      return 'Today ' + d.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+      return 'Today ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     } else if (days === 1) {
       return 'Yesterday';
     } else if (days < 7) {
       return `${days} days ago`;
     } else {
-      const d = new Date(date);
-      return d.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-      });
+      return d.toLocaleDateString();
     }
-  };
-
-  const getPreviewText = (text: string) => {
-    return text.length > 60 ? text.substring(0, 60) + '...' : text;
   };
 
   const renderChatItem = ({ item }: { item: ChatHistory }) => (
     <TouchableOpacity
-      style={styles.chatItem}
+      style={styles.chatCard}
       onPress={() => handleChatPress(item)}
       activeOpacity={0.7}
     >
-      <View style={styles.chatItemLeft}>
-        <View style={styles.chatIcon}>
-          <Text style={styles.chatIconText}>💬</Text>
-        </View>
-        <View style={styles.chatContent}>
-          <Text style={styles.chatText} numberOfLines={2}>
-            {getPreviewText(item.firstMessage)}
-          </Text>
-          <View style={styles.chatMeta}>
-            <Text style={styles.chatDate}>{formatDate(item.timestamp)}</Text>
-            <Text style={styles.chatCount}>
-              • {item.messageCount} msg
-            </Text>
-          </View>
+      <View style={styles.chatIconContainer}>
+        <LinearGradient colors={['#EEF2FF', '#E0E7FF']} style={styles.chatIconBg}>
+          <Ionicons name="chatbubble-ellipses" size={24} color={Colors.primary} />
+        </LinearGradient>
+      </View>
+      <View style={styles.chatInfo}>
+        <Text style={styles.chatSnippet} numberOfLines={1}>
+          {item.firstMessage || 'New Conversation'}
+        </Text>
+        <View style={styles.chatMeta}>
+          <Text style={styles.chatDate}>{formatDate(item.timestamp)}</Text>
+          <View style={styles.dot} />
+          <Text style={styles.messageCount}>{item.messageCount || 0} messages</Text>
         </View>
       </View>
-      <TouchableOpacity
-        style={styles.deleteButton}
-        onPress={() => handleDeleteChat(item.id)}
-      >
-        <Text style={styles.deleteIcon}>🗑️</Text>
+      <TouchableOpacity onPress={() => handleDeleteChat(item.id)} style={styles.deleteBtn}>
+        <Ionicons name="trash-outline" size={20} color={Colors.gray400} />
       </TouchableOpacity>
     </TouchableOpacity>
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#2196F3" />
-      
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Chat History</Text>
-        {chats.length > 0 && (
-          <Text style={styles.headerSubtitle}>
-            {chats.length} {chats.length === 1 ? 'conversation' : 'conversations'}
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <StatusBar barStyle="light-content" />
+      <LinearGradient colors={INDIGO_GRADIENT as any} style={styles.header}>
+        <Text style={styles.headerTitle}>Learning History</Text>
+        <Text style={styles.headerSubtitle}>Review your previous lessons</Text>
+      </LinearGradient>
+
+      {chats.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <FontAwesome5 name="history" size={60} color={Colors.gray200} />
+          <Text style={styles.emptyTitle}>No History Yet</Text>
+          <Text style={styles.emptySubtitle}>
+            Your conversations with the AI Tutor will appear here.
           </Text>
-        )}
-      </View>
+          <TouchableOpacity
+            style={styles.startBtn}
+            onPress={() => router.push('/(tabs)/tutor')}
+          >
+            <Text style={styles.startBtnText}>Start Learning</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <FlatList
+          data={chats}
+          renderItem={renderChatItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
+        />
+      )}
 
-      {/* Chat List */}
-      <FlatList
-        data={chats}
-        keyExtractor={(item) => item.id}
-        renderItem={renderChatItem}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyIcon}>📭</Text>
-            <Text style={styles.emptyText}>No chat history yet</Text>
-            <Text style={styles.emptySubtext}>
-              Your conversations will appear here
-            </Text>
-          </View>
-        }
-        scrollEventThrottle={16}
-      />
-
-      {/* Chat Details Modal */}
+      {/* Full Chat Modal */}
       <Modal
         visible={modalVisible}
-        transparent
         animationType="slide"
         onRequestClose={() => setModalVisible(false)}
       >
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setModalVisible(false)}>
-              <Text style={styles.closeButton}>‹</Text>
+            <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeBtn}>
+              <Ionicons name="close" size={24} color={Colors.gray700} />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Chat Details</Text>
+            <Text style={styles.modalTitle}>Conversation</Text>
             <View style={{ width: 40 }} />
           </View>
-
-          <ScrollView style={styles.modalContent}>
-            {selectedChat?.messages?.map((msg: any, idx: number) => (
+          <ScrollView contentContainerStyle={styles.modalScroll}>
+            {selectedChat?.map((msg: any, index: number) => (
               <View
-                key={idx}
+                key={index}
                 style={[
-                  styles.messageRow,
-                  msg.isUser ? styles.userMessage : styles.botMessage,
+                  styles.msgBubble,
+                  msg.isUser ? styles.userBubble : styles.aiBubble
                 ]}
               >
-                <Text style={[styles.messageText, { color: msg.isUser ? '#ffffff' : '#1a1a1a' }]}>
+                <Text style={[styles.msgText, msg.isUser ? styles.userMsgText : styles.aiMsgText]}>
                   {msg.text}
-                </Text>
-                <Text style={[styles.messageTime, { color: msg.isUser ? '#e0e0e0' : '#999' }]}>
-                  {new Date(msg.timestamp).toLocaleTimeString('en-US', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
                 </Text>
               </View>
             ))}
@@ -202,160 +191,161 @@ export default function HistoryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: Colors.white,
   },
   header: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#2196F3',
+    padding: 30,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    elevation: 8,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#ffffff',
-    marginBottom: 4,
+    fontSize: 28,
+    fontFamily: Fonts.bold,
+    color: Colors.white,
   },
   headerSubtitle: {
-    fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 5,
   },
   listContent: {
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+    padding: 20,
   },
-  chatItem: {
+  chatCard: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    marginBottom: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#2196F3',
+    backgroundColor: Colors.white,
+    padding: 16,
+    borderRadius: 20,
+    marginBottom: 15,
     borderWidth: 1,
-    borderColor: '#f0f0f0',
+    borderColor: Colors.gray100,
+    ...Shadows.sm,
   },
-  chatItemLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: 12,
+  chatIconContainer: {
+    marginRight: 15,
   },
-  chatIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: '#E3F2FD',
+  chatIconBg: {
+    width: 50,
+    height: 50,
+    borderRadius: 15,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  chatIconText: {
-    fontSize: 20,
-  },
-  chatContent: {
+  chatInfo: {
     flex: 1,
   },
-  chatText: {
-    fontSize: 15,
-    color: '#1a1a1a',
-    fontWeight: '600',
-    marginBottom: 6,
-    lineHeight: 20,
+  chatSnippet: {
+    fontSize: 16,
+    fontFamily: Fonts.semibold,
+    color: Colors.gray900,
+    marginBottom: 4,
   },
   chatMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
   },
   chatDate: {
     fontSize: 12,
-    color: '#999',
-    fontWeight: '500',
+    color: Colors.gray500,
   },
-  chatCount: {
+  dot: {
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: Colors.gray300,
+    marginHorizontal: 8,
+  },
+  messageCount: {
     fontSize: 12,
-    color: '#999',
+    color: Colors.gray500,
   },
-  deleteButton: {
+  deleteBtn: {
     padding: 8,
-    marginLeft: 8,
-  },
-  deleteIcon: {
-    fontSize: 18,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 32,
+    padding: 40,
   },
-  emptyIcon: {
-    fontSize: 64,
-    marginBottom: 16,
+  emptyTitle: {
+    fontSize: 22,
+    fontFamily: Fonts.bold,
+    color: Colors.gray800,
+    marginTop: 20,
   },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    marginBottom: 8,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#666',
+  emptySubtitle: {
+    fontSize: 15,
+    color: Colors.gray500,
     textAlign: 'center',
+    marginTop: 10,
+    lineHeight: 22,
+  },
+  startBtn: {
+    marginTop: 30,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 25,
+    paddingVertical: 12,
+    borderRadius: BorderRadius.full,
+  },
+  startBtnText: {
+    color: Colors.white,
+    fontFamily: Fonts.bold,
+    fontSize: 16,
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: Colors.white,
   },
   modalHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    justifyContent: 'space-between',
+    padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: Colors.gray100,
   },
-  closeButton: {
-    fontSize: 32,
-    color: '#666',
-    width: 40,
-    textAlign: 'center',
-    fontWeight: '300',
+  closeBtn: {
+    padding: 8,
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#1a1a1a',
+    fontFamily: Fonts.bold,
+    color: Colors.gray900,
   },
-  modalContent: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+  modalScroll: {
+    padding: 20,
   },
-  messageRow: {
-    marginBottom: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
+  msgBubble: {
+    padding: 15,
+    borderRadius: 20,
+    marginBottom: 15,
     maxWidth: '85%',
   },
-  userMessage: {
+  userBubble: {
     alignSelf: 'flex-end',
-    backgroundColor: '#2196F3',
+    backgroundColor: Colors.primary,
+    borderBottomRightRadius: 4,
   },
-  botMessage: {
+  aiBubble: {
     alignSelf: 'flex-start',
-    backgroundColor: '#f0f0f0',
+    backgroundColor: Colors.gray100,
+    borderBottomLeftRadius: 4,
   },
-  messageText: {
+  msgText: {
     fontSize: 15,
-    marginBottom: 4,
+    lineHeight: 22,
   },
-  messageTime: {
-    fontSize: 11,
-    color: '#999',
+  userMsgText: {
+    color: Colors.white,
+  },
+  aiMsgText: {
+    color: Colors.gray800,
   },
 });

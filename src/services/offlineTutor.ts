@@ -20,7 +20,9 @@ async function tryNativeLlama(question: string): Promise<TutorResponse | null> {
 
   try {
     const prompt = [
-      'You are a concise, step-by-step tutor. Keep answers short and actionable.',
+      'You are a concise AI Tutor for Class 9 students.',
+      'Explain concepts in a short, complete, and highly useful manner.',
+      'Avoid long paragraphs. Be direct and accurate for a 9th grade level.',
       `Question: ${question}`,
     ].join('\n');
 

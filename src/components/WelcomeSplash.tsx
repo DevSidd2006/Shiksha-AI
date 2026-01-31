@@ -7,15 +7,16 @@ import {
     Animated,
     Dimensions,
 } from 'react-native';
+import StudyIllustration from './illustrations/StudyIllustration';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface WelcomeSplashProps {
     visible: boolean;
-    onComplete: () => void;
+    onClose: () => void;
 }
 
-export function WelcomeSplash({ visible, onComplete }: WelcomeSplashProps) {
+export function WelcomeSplash({ visible, onClose }: WelcomeSplashProps) {
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const scaleAnim = useRef(new Animated.Value(0.5)).current;
     const slideAnim = useRef(new Animated.Value(50)).current;
@@ -61,7 +62,7 @@ export function WelcomeSplash({ visible, onComplete }: WelcomeSplashProps) {
                     useNativeDriver: true,
                 }),
             ]).start(() => {
-                onComplete();
+                onClose();
             });
 
             // Continuous pulse animation for logo
@@ -116,7 +117,7 @@ export function WelcomeSplash({ visible, onComplete }: WelcomeSplashProps) {
                                 },
                             ]}
                         >
-                            <Text style={styles.logoEmoji}>🎓</Text>
+                            <StudyIllustration width={80} height={80} />
                         </Animated.View>
 
                         {/* App Name */}
@@ -147,7 +148,7 @@ const styles = StyleSheet.create({
     },
     background: {
         flex: 1,
-        backgroundColor: '#2196F3',
+        backgroundColor: '#6366F1',
         justifyContent: 'center',
         alignItems: 'center',
     },

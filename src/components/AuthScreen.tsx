@@ -10,9 +10,16 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
+  Dimensions,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { registerUser, loginUser } from '@/storage/authstore';
+import { registerUser, loginUser } from '@/storage/authStore';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { Colors, Fonts, Shadows, Spacing, BorderRadius } from '@/styles/designSystem';
+
+const { width } = Dimensions.get('window');
 
 interface AuthScreenProps {
   onAuthSuccess: () => void;
@@ -36,293 +43,227 @@ export function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       return;
     }
 
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
-      return;
-    }
-
-    if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
-      return;
-    }
-
     setLoading(true);
-
     try {
       if (isLogin) {
-        const result = await loginUser(email, password);
-        if (result.success) {
-          Alert.alert('Success', 'Welcome back!');
+        const success = await loginUser(email, password);
+        if (success) {
           onAuthSuccess();
         } else {
-          Alert.alert('Login Failed', result.message);
+          Alert.alert('Login Failed', 'Invalid email or password');
         }
       } else {
-        const result = await registerUser(email, password, name);
-        if (result.success) {
-          Alert.alert('Success', 'Account created! Please login.');
-          setIsLogin(true);
-          setPassword('');
+        const success = await registerUser(name, email, password);
+        if (success) {
+          onAuthSuccess();
         } else {
-          Alert.alert('Registration Failed', result.message);
+          Alert.alert('Registration Failed', 'Email might already be in use');
         }
       }
     } catch (error) {
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      console.error('Auth error:', error);
+      Alert.alert('Error', 'An unexpected error occurred');
     } finally {
       setLoading(false);
     }
   };
 
-  const toggleMode = () => {
-    setIsLogin(!isLogin);
-    setEmail('');
-    setPassword('');
-    setName('');
-  };
-
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      <LinearGradient
+        colors={['#6366F1', '#4F46E5']}
+        style={styles.background}
       >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardView}
         >
-          {/* Logo */}
-          <View style={styles.logoContainer}>
-            <Text style={styles.logoEmoji}>🎓</Text>
-            <Text style={styles.appName}>Siksha AI</Text>
-            <Text style={styles.tagline}>Your Personal AI Tutor</Text>
-          </View>
-
-          {/* Form */}
-          <View style={styles.formContainer}>
-            <Text style={styles.formTitle}>
-              {isLogin ? 'Welcome Back!' : 'Create Account'}
-            </Text>
-            <Text style={styles.formSubtitle}>
-              {isLogin
-                ? 'Login to continue your learning journey'
-                : 'Sign up to start learning with AI'}
-            </Text>
-
-            {!isLogin && (
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Full Name</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Enter your name"
-                  value={name}
-                  onChangeText={setName}
-                  autoCapitalize="words"
-                  placeholderTextColor="#999"
-                />
+          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.logoSection}>
+              <View style={styles.logoContainer}>
+                <Ionicons name="school" size={50} color={Colors.white} />
               </View>
-            )}
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Email</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your email"
-                value={email}
-                onChangeText={setEmail}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoComplete="email"
-                placeholderTextColor="#999"
-              />
+              <Text style={styles.appName}>Siksha AI</Text>
+              <Text style={styles.appSubtitle}>Your Personal Learning Assistant</Text>
             </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Password</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your password"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                autoCapitalize="none"
-                placeholderTextColor="#999"
-              />
-            </View>
-
-            <TouchableOpacity
-              style={[styles.submitButton, loading && styles.submitButtonDisabled]}
-              onPress={handleSubmit}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#ffffff" />
-              ) : (
-                <Text style={styles.submitButtonText}>
-                  {isLogin ? 'Login' : 'Sign Up'}
-                </Text>
+            <View style={styles.formCard}>
+              <Text style={styles.formTitle}>{isLogin ? 'Welcome Back' : 'Create Account'}</Text>
+              
+              {!isLogin && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Full Name</Text>
+                  <View style={styles.inputWrapper}>
+                    <Ionicons name="person-outline" size={20} color={Colors.gray400} />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter your name"
+                      value={name}
+                      onChangeText={setName}
+                    />
+                  </View>
+                </View>
               )}
-            </TouchableOpacity>
 
-            <View style={styles.toggleContainer}>
-              <Text style={styles.toggleText}>
-                {isLogin ? "Don't have an account? " : 'Already have an account? '}
-              </Text>
-              <TouchableOpacity onPress={toggleMode}>
-                <Text style={styles.toggleLink}>
-                  {isLogin ? 'Sign Up' : 'Login'}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Email Address</Text>
+                <View style={styles.inputWrapper}>
+                  <Ionicons name="mail-outline" size={20} color={Colors.gray400} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="student@siksha.ai"
+                    value={email}
+                    onChangeText={setEmail}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Password</Text>
+                <View style={styles.inputWrapper}>
+                  <Ionicons name="lock-closed-outline" size={20} color={Colors.gray400} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter password"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry
+                  />
+                </View>
+              </View>
+
+              <TouchableOpacity
+                style={styles.submitBtn}
+                onPress={handleSubmit}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color={Colors.white} />
+                ) : (
+                  <Text style={styles.submitBtnText}>
+                    {isLogin ? 'Login' : 'Sign Up'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.switchBtn}
+                onPress={() => setIsLogin(!isLogin)}
+              >
+                <Text style={styles.switchBtnText}>
+                  {isLogin ? "Don't have an account? Sign Up" : "Already have an account? Login"}
                 </Text>
               </TouchableOpacity>
             </View>
-          </View>
-
-          {/* Features */}
-          <View style={styles.featuresContainer}>
-            <View style={styles.featureItem}>
-              <Text style={styles.featureIcon}>✨</Text>
-              <Text style={styles.featureText}>Smart Learning</Text>
-            </View>
-            <View style={styles.featureItem}>
-              <Text style={styles.featureIcon}>🤖</Text>
-              <Text style={styles.featureText}>AI-Powered Help</Text>
-            </View>
-            <View style={styles.featureItem}>
-              <Text style={styles.featureIcon}>📚</Text>
-              <Text style={styles.featureText}>24/7 Available</Text>
-            </View>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+  },
+  background: {
+    flex: 1,
   },
   keyboardView: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingVertical: 20,
+    padding: 24,
+    justifyContent: 'center',
   },
-  logoContainer: {
+  logoSection: {
     alignItems: 'center',
-    marginTop: 20,
     marginBottom: 40,
   },
-  logoEmoji: {
-    fontSize: 64,
-    marginBottom: 12,
+  logoContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   appName: {
     fontSize: 32,
-    fontWeight: 'bold',
-    color: '#2196F3',
-    marginBottom: 8,
+    fontFamily: Fonts.bold,
+    color: Colors.white,
   },
-  tagline: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '500',
+  appSubtitle: {
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 4,
   },
-  formContainer: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+  formCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 32,
+    padding: 30,
+    ...Shadows.lg,
   },
   formTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1a1a1a',
-    marginBottom: 8,
-  },
-  formSubtitle: {
-    fontSize: 14,
-    color: '#666',
+    fontFamily: Fonts.bold,
+    color: Colors.gray900,
     marginBottom: 24,
+    textAlign: 'center',
   },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: 20,
   },
-  label: {
+  inputLabel: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#1a1a1a',
+    fontFamily: Fonts.semibold,
+    color: Colors.gray700,
     marginBottom: 8,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.gray50,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: Colors.gray200,
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#1a1a1a',
-    backgroundColor: '#f5f5f5',
+    flex: 1,
+    height: 50,
+    marginLeft: 12,
+    fontSize: 15,
+    color: Colors.gray900,
   },
-  submitButton: {
-    backgroundColor: '#2196F3',
-    borderRadius: 10,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 8,
-    shadowColor: '#2196F3',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  submitButtonDisabled: {
-    backgroundColor: '#ccc',
-  },
-  submitButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  toggleContainer: {
-    flexDirection: 'row',
+  submitBtn: {
+    backgroundColor: Colors.primary,
+    height: 56,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
+    marginTop: 10,
+    ...Shadows.md,
+  },
+  submitBtnText: {
+    color: Colors.white,
+    fontSize: 16,
+    fontFamily: Fonts.bold,
+  },
+  switchBtn: {
     marginTop: 20,
-  },
-  toggleText: {
-    fontSize: 14,
-    color: '#666',
-  },
-  toggleLink: {
-    fontSize: 14,
-    color: '#2196F3',
-    fontWeight: '700',
-  },
-  featuresContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 32,
-    paddingHorizontal: 16,
-  },
-  featureItem: {
     alignItems: 'center',
   },
-  featureIcon: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  featureText: {
-    fontSize: 12,
-    color: '#666',
-    fontWeight: '600',
+  switchBtnText: {
+    color: Colors.primary,
+    fontSize: 14,
+    fontFamily: Fonts.semibold,
   },
 });

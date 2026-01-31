@@ -1,5 +1,7 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
+import { OCRService } from './ocrService';
+import Constants from 'expo-constants';
 
 export interface VisionResult {
   answer: string;
@@ -7,6 +9,19 @@ export interface VisionResult {
   processingTime: number;
   confidence?: number;
 }
+
+// Get backend URL (same logic as ocrService)
+const getBackendUrl = () => {
+  const hostUri = Constants.expoConfig?.hostUri;
+  if (hostUri) {
+    const host = hostUri.split(':')[0];
+    return `http://${host}:3000`;
+  }
+  if (Platform.OS === 'android') {
+    return 'http://10.0.2.2:3000';
+  }
+  return 'http://localhost:3000';
+};
 
 export class VisionLanguageService {
   private static readonly MODEL_NAME = 'qwen3-vl:2b';
@@ -23,6 +38,81 @@ export class VisionLanguageService {
   ];
 
   /**
+   * Alias for processImageWithQuestion to match tutor.tsx expectations
+   * Returns just the answer string for easy chat integration
+   * Falls back to OCR + text LLM if vision model is unavailable
+   */
+  static async analyzeImage(imageUri: string, question: string): Promise<string> {
+    // First, check if vision model is available
+    const visionAvailable = await this.isVisionModelAvailable();
+    
+    if (visionAvailable) {
+      try {
+        const result = await this.processImageWithQuestion(imageUri, question);
+        if (result.confidence && result.confidence > 0.5) {
+          return result.answer;
+        }
+      } catch (error) {
+        console.log('Vision model failed, falling back to OCR + LLM');
+      }
+    }
+
+    // Fallback: Use backend OCR + backend LLM (through /tutor endpoint)
+    console.log('Using OCR + text LLM fallback...');
+    try {
+      const ocrResult = await OCRService.extractTextFromImage(imageUri);
+      
+      if (!ocrResult.text || ocrResult.text.trim().length < 10) {
+        return 'I could not extract meaningful text from this image. Please ensure the image is clear and contains readable text, or try asking about a specific part of the image.';
+      }
+
+      // Send extracted text to backend /tutor endpoint (which has Ollama access)
+      const response = await fetch(`${getBackendUrl()}/tutor`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: `The student uploaded an image. Here is the text extracted from it:\n\n"${ocrResult.text}"\n\nStudent's question: ${question}\n\nProvide a helpful, concise answer.`,
+          studentGrade: 'Class 9'
+        })
+      });
+
+      const data = await response.json();
+      return data.answer || `I extracted this text from the image:\n\n"${ocrResult.text}"\n\nPlease ask a specific question about it.`;
+    } catch (fallbackError) {
+      console.error('OCR fallback also failed:', fallbackError);
+      return 'I could not process this image. Please ensure the backend server is running and try again.';
+    }
+  }
+
+  /**
+   * Get the URL for the text-based LLM (same Ollama instance)
+   */
+  private static getTextLLMUrl(): string {
+    return this.OLLAMA_BASE_URL;
+  }
+
+  /**
+   * Quick check if vision model is available (cached)
+   */
+  private static visionModelChecked = false;
+  private static visionModelAvailable = false;
+  
+  private static async isVisionModelAvailable(): Promise<boolean> {
+    if (this.visionModelChecked) return this.visionModelAvailable;
+    
+    try {
+      const result = await this.testConnection();
+      this.visionModelAvailable = result.modelAvailable;
+      this.visionModelChecked = true;
+      return this.visionModelAvailable;
+    } catch {
+      this.visionModelChecked = true;
+      this.visionModelAvailable = false;
+      return false;
+    }
+  }
+
+  /**
    * Process image with Qwen3-VL vision-language model
    * Can detect objects, read text, explain images, and answer questions about images
    */
@@ -35,9 +125,10 @@ export class VisionLanguageService {
     try {
       console.log('Processing image with Qwen3-VL:2B...');
 
-      // Read image as base64
+      // Read image as base64 - ensure file:// prefix for Android
+      const uri = imageUri.startsWith('file://') ? imageUri : `file://${imageUri}`;
       const base64Image = await FileSystem.readAsStringAsync(
-        imageUri,
+        uri,
         { encoding: 'base64' }
       );
 
@@ -45,9 +136,16 @@ export class VisionLanguageService {
       const imageDataUri = `data:image/jpeg;base64,${base64Image}`;
 
       // Prepare the prompt for vision-language understanding
-      const systemPrompt = `You are a helpful AI assistant that can see and understand images. Analyze the provided image and answer the user's question accurately and helpfully. If the question is about text in the image, extract and explain it. If it's about objects or scenes, describe them clearly. Be concise but comprehensive.`;
+      const systemPrompt = `You are a helpful AI Assistant for Class 9 students. Analyze the provided image and answer the student's question accurately.
+      
+      GUIDELINES:
+      - Assume the user is a Class 9 student.
+      - Keep explanations short, concise, and complete. 
+      - Do not provide unnecessary length or filler.
+      - If the question is about text in the image, extract and explain it specifically for a 9th grader.
+      - Be highly useful and direct. Use academic but simple language.`;
 
-      const userPrompt = `Question: ${question}\n\nPlease analyze this image and provide a detailed answer.`;
+      const userPrompt = `Question: ${question}\n\nPlease analyze this image and provide a concise, useful answer for a Class 9 student.`;
 
       // Call Ollama API with vision model
       const controller = new AbortController();

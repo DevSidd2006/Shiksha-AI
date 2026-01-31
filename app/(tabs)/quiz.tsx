@@ -3,429 +3,180 @@ import {
   View,
   Text,
   TouchableOpacity,
-  FlatList,
   StyleSheet,
-  StatusBar,
   ScrollView,
+  Dimensions,
+  Alert,
+  StatusBar,
+  Animated,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MaterialIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
+import { CLASS_9_SCIENCE, Chapter } from '@/data/class9Science';
+import { CLASS_9_SCIENCE_QUIZ, QuizQuestion } from '@/data/class9ScienceQuiz';
+import { Colors, Fonts, Shadows, Spacing, BorderRadius } from '@/styles/designSystem';
 
-// Import quiz data
-let CLASS_9_SCIENCE_QUIZ: any[] = [];
-try {
-  const quizData = require('@/data/class9ScienceQuiz');
-  CLASS_9_SCIENCE_QUIZ = quizData.CLASS_9_SCIENCE_QUIZ || [];
-  console.log('Quiz data loaded:', CLASS_9_SCIENCE_QUIZ.length, 'questions');
-} catch (error) {
-  console.error('Failed to load quiz data:', error);
-}
+const { width } = Dimensions.get('window');
 
-export interface QuizResult {
-  questionId: string;
-  selectedAnswer: number;
-  isCorrect: boolean;
-  timeSpent: number;
-}
+type QuizState = 'selecting' | 'active' | 'finished';
 
-interface QuizState {
-  selectedChapter: number | null;
-  currentQuestionIndex: number;
-  answers: QuizResult[];
-  quizStarted: boolean;
-  quizCompleted: boolean;
-  showResults: boolean;
-}
+const INDIGO_GRADIENT = ['#6366F1', '#4F46E5'];
 
 export default function QuizScreen() {
-  const [state, setState] = useState<QuizState>({
-    selectedChapter: null,
-    currentQuestionIndex: 0,
-    answers: [],
-    quizStarted: false,
-    quizCompleted: false,
-    showResults: false,
-  });
+  const [state, setState] = useState<QuizState>('selecting');
+  const [currentChapter, setCurrentChapter] = useState<Chapter | null>(null);
+  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [score, setScore] = useState(0);
+  const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const [isAnswered, setIsAnswered] = useState(false);
+  const [showExplanation, setShowExplanation] = useState(false);
 
-  const [timeLeft, setTimeLeft] = useState(30);
-  const [timerActive, setTimerActive] = useState(false);
-
-  // Helper functions
-  const calculateQuizScore = (results: QuizResult[]) => {
-    const correct = results.filter(r => r.isCorrect).length;
-    const total = results.length;
-    const percentage = total > 0 ? (correct / total) * 100 : 0;
-    return { correct, total, percentage };
-  };
-
-  const getPerformanceLevel = (percentage: number): string => {
-    if (percentage >= 90) return 'Excellent';
-    if (percentage >= 75) return 'Good';
-    if (percentage >= 60) return 'Average';
-    if (percentage >= 45) return 'Below Average';
-    return 'Needs Improvement';
-  };
-
-  const getQuestionsByChapter = (chapterId: number) => {
-    if (!CLASS_9_SCIENCE_QUIZ || CLASS_9_SCIENCE_QUIZ.length === 0) {
-      console.warn('Quiz data not available:', CLASS_9_SCIENCE_QUIZ);
-      return [];
+  const startQuiz = (chapter: Chapter) => {
+    const chapterQuestions = CLASS_9_SCIENCE_QUIZ.filter(q => q.chapter === chapter.id);
+    if (chapterQuestions.length === 0) {
+      Alert.alert('Coming Soon', 'Quiz questions for this chapter are being added!');
+      return;
     }
-    const filtered = CLASS_9_SCIENCE_QUIZ.filter(q => q.chapter === chapterId);
-    console.log(`Questions for chapter ${chapterId}:`, filtered.length);
-    return filtered;
+    setCurrentChapter(chapter);
+    setQuestions(chapterQuestions);
+    setCurrentQuestionIndex(0);
+    setScore(0);
+    setState('active');
+    setSelectedOption(null);
+    setIsAnswered(false);
+    setShowExplanation(false);
   };
 
-  const chapters = [
-    { id: 1, title: 'Matter in Our Surroundings', questions: 6 },
-    { id: 2, title: 'Is Matter Around Us Pure', questions: 6 },
-    { id: 3, title: 'Atoms and Molecules', questions: 6 },
-  ];
+  const handleOptionSelect = (index: number) => {
+    if (isAnswered) return;
+    setSelectedOption(index);
+  };
 
-  const currentQuestions = state.selectedChapter
-    ? getQuestionsByChapter(state.selectedChapter)
-    : [];
-
-  const currentQuestion = currentQuestions[state.currentQuestionIndex];
-
-  useEffect(() => {
-    if (timerActive && timeLeft > 0) {
-      const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000);
-      return () => clearTimeout(timer);
-    } else if (timeLeft === 0 && timerActive) {
-      handleSkipQuestion();
+  const checkAnswer = () => {
+    if (selectedOption === null) return;
+    setIsAnswered(true);
+    if (selectedOption === questions[currentQuestionIndex].correctAnswer) {
+      setScore(score + 1);
     }
-  }, [timeLeft, timerActive]);
-
-  const handleStartQuiz = (chapterId: number) => {
-    setState({
-      selectedChapter: chapterId,
-      currentQuestionIndex: 0,
-      answers: [],
-      quizStarted: true,
-      quizCompleted: false,
-      showResults: false,
-    });
-    setTimeLeft(30);
-    setTimerActive(true);
   };
 
-  const handleAnswerSelect = (optionIndex: number) => {
-    const isCorrect = optionIndex === currentQuestion.correctAnswer;
-    const newAnswer: QuizResult = {
-      questionId: currentQuestion.id,
-      selectedAnswer: optionIndex,
-      isCorrect,
-      timeSpent: 30 - timeLeft,
-    };
-
-    setState(prev => ({
-      ...prev,
-      answers: [...prev.answers, newAnswer],
-    }));
-
-    if (state.currentQuestionIndex < currentQuestions.length - 1) {
-      setState(prev => ({
-        ...prev,
-        currentQuestionIndex: prev.currentQuestionIndex + 1,
-      }));
-      setTimeLeft(30);
+  const nextQuestion = () => {
+    if (currentQuestionIndex + 1 < questions.length) {
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+      setSelectedOption(null);
+      setIsAnswered(false);
+      setShowExplanation(false);
     } else {
-      setTimerActive(false);
-      setState(prev => ({
-        ...prev,
-        quizCompleted: true,
-        showResults: true,
-      }));
+      setState('finished');
     }
   };
 
-  const handleSkipQuestion = () => {
-    const newAnswer: QuizResult = {
-      questionId: currentQuestion.id,
-      selectedAnswer: -1,
-      isCorrect: false,
-      timeSpent: 30,
-    };
-
-    setState(prev => ({
-      ...prev,
-      answers: [...prev.answers, newAnswer],
-    }));
-
-    if (state.currentQuestionIndex < currentQuestions.length - 1) {
-      setState(prev => ({
-        ...prev,
-        currentQuestionIndex: prev.currentQuestionIndex + 1,
-      }));
-      setTimeLeft(30);
-    } else {
-      setTimerActive(false);
-      setState(prev => ({
-        ...prev,
-        quizCompleted: true,
-        showResults: true,
-      }));
-    }
+  const resetQuiz = () => {
+    setState('selecting');
+    setCurrentChapter(null);
   };
 
-  const handleRetakeQuiz = () => {
-    setState({
-      selectedChapter: state.selectedChapter,
-      currentQuestionIndex: 0,
-      answers: [],
-      quizStarted: true,
-      quizCompleted: false,
-      showResults: false,
-    });
-    setTimeLeft(30);
-    setTimerActive(true);
-  };
-
-  const handleBackToChapters = () => {
-    setState({
-      selectedChapter: null,
-      currentQuestionIndex: 0,
-      answers: [],
-      quizStarted: false,
-      quizCompleted: false,
-      showResults: false,
-    });
-    setTimerActive(false);
-  };
-
-  const score = calculateQuizScore(state.answers);
-  const performanceLevel = getPerformanceLevel(score.percentage);
-
-  if (!state.selectedChapter) {
+  if (state === 'selecting') {
     return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#FF6B35" />
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <StatusBar barStyle="light-content" />
+        <LinearGradient colors={INDIGO_GRADIENT as any} style={styles.header}>
+          <Text style={styles.headerTitle}>Practice Quiz</Text>
+          <Text style={styles.headerSubtitle}>Master your concepts</Text>
+        </LinearGradient>
 
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>📝 Class 9 Science Quiz</Text>
-          <Text style={styles.headerSubtitle}>Test Your Knowledge</Text>
-        </View>
-
-        <FlatList
-          data={chapters}
-          keyExtractor={item => item.id.toString()}
-          renderItem={({ item }) => (
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <Text style={styles.sectionTitle}>Select a Chapter</Text>
+          {CLASS_9_SCIENCE.map((chapter) => (
             <TouchableOpacity
+              key={chapter.id}
               style={styles.chapterCard}
-              onPress={() => handleStartQuiz(item.id)}
+              onPress={() => startQuiz(chapter)}
             >
-              <View style={styles.chapterContent}>
-                <Text style={styles.chapterNumber}>Chapter {item.id}</Text>
-                <Text style={styles.chapterTitle}>{item.title}</Text>
-                <View style={styles.questionCount}>
-                  <MaterialIcons name="quiz" size={16} color="#FF6B35" />
-                  <Text style={styles.questionCountText}>{item.questions} Questions</Text>
-                </View>
+              <View style={styles.chapterIconContainer}>
+                <FontAwesome5 name="microscope" size={20} color={Colors.primary} />
               </View>
-              <MaterialIcons name="arrow-forward" size={24} color="#FF6B35" />
+              <View style={styles.chapterInfo}>
+                <Text style={styles.chapterName}>{chapter.title}</Text>
+                <Text style={styles.questionCount}>{CLASS_9_SCIENCE_QUIZ.filter(q => q.chapter === chapter.id).length} Questions</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Colors.gray400} />
             </TouchableOpacity>
-          )}
-          contentContainerStyle={styles.chapterList}
-          scrollEnabled
-        />
-      </SafeAreaView>
-    );
-  }
-
-  if (state.showResults) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#FF6B35" />
-
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleBackToChapters} style={styles.backButton}>
-            <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Quiz Results</Text>
-        </View>
-
-        <ScrollView style={styles.resultsContainer} contentContainerStyle={styles.resultsContent}>
-          <View style={styles.scoreCard}>
-            <Text style={styles.scoreLabel}>Your Score</Text>
-            <Text style={styles.scoreValue}>{score.correct}/{score.total}</Text>
-            <Text style={styles.scorePercentage}>{score.percentage.toFixed(1)}%</Text>
-            <View
-              style={[
-                styles.performanceBadge,
-                {
-                  backgroundColor:
-                    score.percentage >= 90
-                      ? '#4CAF50'
-                      : score.percentage >= 75
-                      ? '#FF9800'
-                      : '#f44336',
-                },
-              ]}
-            >
-              <Text style={styles.performanceText}>{performanceLevel}</Text>
-            </View>
-          </View>
-
-          <View style={styles.detailsCard}>
-            <Text style={styles.detailsTitle}>Performance Details</Text>
-            <View style={styles.detailRow}>
-              <View style={styles.detailItem}>
-                <MaterialIcons name="check-circle" size={24} color="#4CAF50" />
-                <Text style={styles.detailLabel}>Correct</Text>
-                <Text style={styles.detailValue}>{score.correct}</Text>
-              </View>
-              <View style={styles.detailItem}>
-                <MaterialIcons name="cancel" size={24} color="#f44336" />
-                <Text style={styles.detailLabel}>Incorrect</Text>
-                <Text style={styles.detailValue}>{score.total - score.correct}</Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.reviewCard}>
-            <Text style={styles.reviewTitle}>Review Your Answers</Text>
-            {state.answers.map((answer, index) => {
-              const question = CLASS_9_SCIENCE_QUIZ.find(q => q.id === answer.questionId);
-              return (
-                <View key={index} style={styles.reviewItem}>
-                  <View
-                    style={[
-                      styles.reviewIndicator,
-                      { backgroundColor: answer.isCorrect ? '#4CAF50' : '#f44336' },
-                    ]}
-                  >
-                    <MaterialIcons
-                      name={answer.isCorrect ? 'check' : 'close'}
-                      size={16}
-                      color="#fff"
-                    />
-                  </View>
-                  <View style={styles.reviewContent}>
-                    <Text style={styles.reviewQuestion}>{question?.question}</Text>
-                    <Text style={styles.reviewAnswer}>
-                      Your answer: {question?.options[answer.selectedAnswer] || 'Skipped'}
-                    </Text>
-                    {!answer.isCorrect && (
-                      <Text style={styles.correctAnswer}>
-                        Correct: {question?.options[question.correctAnswer]}
-                      </Text>
-                    )}
-                  </View>
-                </View>
-              );
-            })}
-          </View>
+          ))}
         </ScrollView>
-
-        <View style={styles.actionContainer}>
-          <TouchableOpacity style={styles.retakeButton} onPress={handleRetakeQuiz}>
-            <MaterialIcons name="refresh" size={20} color="#fff" />
-            <Text style={styles.retakeButtonText}>Retake Quiz</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.backButton2} onPress={handleBackToChapters}>
-            <MaterialIcons name="home" size={20} color="#FF6B35" />
-            <Text style={styles.backButtonText}>Back to Chapters</Text>
-          </TouchableOpacity>
-        </View>
       </SafeAreaView>
     );
   }
 
-  if (state.quizStarted) {
-    // If no questions loaded, show error
-    if (!currentQuestion || currentQuestions.length === 0) {
-      return (
-        <SafeAreaView style={styles.container}>
-          <StatusBar barStyle="light-content" backgroundColor="#FF6B35" />
-          <View style={styles.header}>
-            <TouchableOpacity onPress={handleBackToChapters} style={styles.backButton}>
-              <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>Quiz</Text>
-          </View>
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20 }}>
-            <MaterialIcons name="error-outline" size={64} color="#FF6B35" />
-            <Text style={{ fontSize: 18, fontWeight: '600', marginTop: 16, textAlign: 'center' }}>
-              Unable to load questions
-            </Text>
-            <Text style={{ fontSize: 14, color: '#666', marginTop: 8, textAlign: 'center' }}>
-              Please try again or select a different chapter
-            </Text>
-            <TouchableOpacity 
-              style={{ marginTop: 24, paddingHorizontal: 24, paddingVertical: 12, backgroundColor: '#FF6B35', borderRadius: 8 }}
-              onPress={handleBackToChapters}
-            >
-              <Text style={{ color: '#fff', fontWeight: '600' }}>Back to Chapters</Text>
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
-      );
-    }
-
-    const progress = ((state.currentQuestionIndex + 1) / currentQuestions.length) * 100;
-    const isAnswered = state.answers.some(a => a.questionId === currentQuestion.id);
+  if (state === 'active') {
+    const question = questions[currentQuestionIndex];
+    const progress = questions.length > 0 ? ((currentQuestionIndex + 1) / questions.length) * 100 : 0;
 
     return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#FF6B35" />
-
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleBackToChapters} style={styles.backButton}>
-            <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <StatusBar barStyle="dark-content" />
+        <View style={styles.quizHeader}>
+          <TouchableOpacity onPress={resetQuiz} style={styles.backBtn}>
+            <Ionicons name="close" size={24} color={Colors.gray700} />
           </TouchableOpacity>
-          <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>Question {state.currentQuestionIndex + 1}</Text>
-            <Text style={styles.headerProgress}>
-              {state.currentQuestionIndex + 1} of {currentQuestions.length}
+          <View style={styles.progressWrapper}>
+            <View style={styles.progressBarBg}>
+              <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
+            </View>
+            <Text style={styles.progressText}>
+              {currentQuestionIndex + 1} of {questions.length}
             </Text>
           </View>
-          <View style={styles.timerBadge}>
-            <MaterialIcons name="timer" size={16} color="#fff" />
-            <Text style={styles.timerText}>{timeLeft}s</Text>
+          <View style={styles.scoreBadge}>
+            <Text style={styles.scoreBadgeText}>Score: {score}</Text>
           </View>
         </View>
 
-        <View style={styles.progressContainer}>
-          <View style={[styles.progressBar, { width: `${progress}%` }]} />
-        </View>
-
-        <ScrollView style={styles.questionContainer} contentContainerStyle={styles.questionContent}>
+        <ScrollView contentContainerStyle={styles.quizContent}>
           <View style={styles.questionCard}>
-            <View style={styles.difficultyBadge}>
-              <Text style={styles.difficultyText}>{currentQuestion.difficulty.toUpperCase()}</Text>
-            </View>
-            <Text style={styles.questionText}>{currentQuestion.question}</Text>
+            <Text style={styles.questionText}>{question.question}</Text>
           </View>
 
           <View style={styles.optionsContainer}>
-            {currentQuestion.options.map((option: string, index: number) => {
-              const isSelected = state.answers.some(
-                a => a.questionId === currentQuestion.id && a.selectedAnswer === index
-              );
-              const isCorrect = index === currentQuestion.correctAnswer;
+            {question.options.map((option, index) => {
+              let optionStyle = styles.optionCard;
+              let textStyle = styles.optionText;
+
+              if (isAnswered) {
+                if (index === question.correctAnswer) {
+                  optionStyle = { ...styles.optionCard, ...styles.correctOption };
+                  textStyle = { ...styles.optionText, ...styles.correctOptionText };
+                } else if (index === selectedOption) {
+                  optionStyle = { ...styles.optionCard, ...styles.wrongOption };
+                  textStyle = { ...styles.optionText, ...styles.wrongOptionText };
+                }
+              } else if (index === selectedOption) {
+                optionStyle = { ...styles.optionCard, ...styles.selectedOption };
+                textStyle = { ...styles.optionText, ...styles.selectedOptionText };
+              }
 
               return (
                 <TouchableOpacity
                   key={index}
-                  style={[
-                    styles.optionButton,
-                    isSelected && (isCorrect ? styles.optionCorrect : styles.optionIncorrect),
-                  ]}
-                  onPress={() => handleAnswerSelect(index)}
+                  style={optionStyle}
+                  onPress={() => handleOptionSelect(index)}
                   disabled={isAnswered}
                 >
-                  <View
-                    style={[
-                      styles.optionIndicator,
-                      isSelected && (isCorrect ? styles.indicatorCorrect : styles.indicatorIncorrect),
-                    ]}
-                  >
-                    <Text style={styles.optionLetter}>{String.fromCharCode(65 + index)}</Text>
+                  <View style={styles.optionIndex}>
+                    <Text style={[styles.optionIndexText, index === selectedOption && styles.selectedOptionIndexText]}>
+                      {String.fromCharCode(65 + index)}
+                    </Text>
                   </View>
-                  <Text style={styles.optionText}>{option}</Text>
-                  {isSelected && isCorrect && <MaterialIcons name="check-circle" size={20} color="#4CAF50" />}
-                  {isSelected && !isCorrect && <MaterialIcons name="cancel" size={20} color="#f44336" />}
+                  <Text style={textStyle}>{option}</Text>
+                  {isAnswered && index === question.correctAnswer && (
+                    <Ionicons name="checkmark-circle" size={24} color={Colors.success} />
+                  )}
+                  {isAnswered && index === selectedOption && index !== question.correctAnswer && (
+                    <Ionicons name="close-circle" size={24} color={Colors.error} />
+                  )}
                 </TouchableOpacity>
               );
             })}
@@ -433,501 +184,400 @@ export default function QuizScreen() {
 
           {isAnswered && (
             <View style={styles.explanationCard}>
-              <Text style={styles.explanationTitle}>Explanation</Text>
-              <Text style={styles.explanationText}>{currentQuestion.explanation}</Text>
+              <View style={styles.explanationHeader}>
+                <Ionicons name="bulb" size={20} color={Colors.warning} />
+                <Text style={styles.explanationTitle}>Explanation</Text>
+              </View>
+              <Text style={styles.explanationText}>{question.explanation}</Text>
             </View>
           )}
         </ScrollView>
 
-        {isAnswered && (
-          <View style={styles.navigationContainer}>
+        <View style={styles.footer}>
+          {!isAnswered ? (
             <TouchableOpacity
-              style={[styles.navButton, state.currentQuestionIndex === 0 && styles.navButtonDisabled]}
-              disabled={state.currentQuestionIndex === 0}
-              onPress={() => {
-                setState(prev => ({
-                  ...prev,
-                  currentQuestionIndex: prev.currentQuestionIndex - 1,
-                }));
-                setTimeLeft(30);
-              }}
+              style={[styles.actionBtn, selectedOption === null && styles.disabledBtn]}
+              onPress={checkAnswer}
+              disabled={selectedOption === null}
             >
-              <MaterialIcons name="arrow-back" size={20} color="#FF6B35" />
-              <Text style={styles.navButtonText}>Previous</Text>
+              <Text style={styles.actionBtnText}>Check Answer</Text>
             </TouchableOpacity>
-
-            {state.currentQuestionIndex < currentQuestions.length - 1 ? (
-              <TouchableOpacity
-                style={styles.navButton}
-                onPress={() => {
-                  setState(prev => ({
-                    ...prev,
-                    currentQuestionIndex: prev.currentQuestionIndex + 1,
-                  }));
-                  setTimeLeft(30);
-                }}
-              >
-                <Text style={styles.navButtonText}>Next</Text>
-                <MaterialIcons name="arrow-forward" size={20} color="#FF6B35" />
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={[styles.navButton, styles.finishButton]}
-                onPress={() => {
-                  setTimerActive(false);
-                  setState(prev => ({
-                    ...prev,
-                    quizCompleted: true,
-                    showResults: true,
-                  }));
-                }}
-              >
-                <Text style={styles.finishButtonText}>Finish Quiz</Text>
-                <MaterialIcons name="check" size={20} color="#fff" />
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
-
-        {!isAnswered && (
-          <View style={styles.skipContainer}>
-            <TouchableOpacity style={styles.skipButton} onPress={handleSkipQuestion}>
-              <Text style={styles.skipButtonText}>Skip Question</Text>
+          ) : (
+            <TouchableOpacity style={styles.actionBtn} onPress={nextQuestion}>
+              <Text style={styles.actionBtnText}>
+                {currentQuestionIndex + 1 === questions.length ? 'Finish Quiz' : 'Next Question'}
+              </Text>
             </TouchableOpacity>
-          </View>
-        )}
+          )}
+        </View>
       </SafeAreaView>
     );
   }
 
-  return null;
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <StatusBar barStyle="light-content" />
+      <LinearGradient colors={INDIGO_GRADIENT as any} style={styles.header}>
+        <Text style={styles.headerTitle}>Quiz Results</Text>
+        <Text style={styles.headerSubtitle}>{currentChapter?.title}</Text>
+      </LinearGradient>
+
+      <ScrollView contentContainerStyle={styles.finishedScroll}>
+        <View style={styles.finishedContainer}>
+          <View style={styles.resultEmoji}>
+            <Text style={{ fontSize: 80 }}>{score / questions.length >= 0.7 ? '🏆' : '📚'}</Text>
+          </View>
+          <Text style={styles.finishedTitle}>
+            {score / questions.length >= 0.7 ? 'Fantastic Job!' : 'Keep Learning!'}
+          </Text>
+          <Text style={styles.finishedSubtitle}>
+            You scored {score} out of {questions.length} questions
+          </Text>
+          
+          <View style={styles.resultCard}>
+            <View style={styles.resultStat}>
+              <Text style={[styles.resultValue, { color: Colors.success }]}>{score}</Text>
+              <Text style={styles.resultLabel}>Correct</Text>
+            </View>
+            <View style={styles.resultDivider} />
+            <View style={styles.resultStat}>
+              <Text style={[styles.resultValue, { color: Colors.error }]}>{questions.length - score}</Text>
+              <Text style={styles.resultLabel}>Incorrect</Text>
+            </View>
+            <View style={styles.resultDivider} />
+            <View style={styles.resultStat}>
+              <Text style={[styles.resultValue, { color: Colors.primary }]}>
+                {Math.round((score / questions.length) * 100)}%
+              </Text>
+              <Text style={styles.resultLabel}>Accuracy</Text>
+            </View>
+          </View>
+
+          <View style={styles.actionGrid}>
+            <TouchableOpacity style={styles.secondaryBtn} onPress={resetQuiz}>
+              <Text style={styles.secondaryBtnText}>Back to Chapters</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.primaryBtn} 
+              onPress={() => startQuiz(currentChapter)}
+            >
+              <LinearGradient colors={INDIGO_GRADIENT as any} style={styles.btnGradient}>
+                <Text style={styles.primaryBtnText}>Retry Quiz</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: Colors.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FF6B35',
-  },
-  backButton: {
-    padding: 8,
-    marginRight: 12,
-  },
-  headerContent: {
-    flex: 1,
+    padding: 30,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    elevation: 10,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#ffffff',
+    fontSize: 28,
+    fontFamily: Fonts.bold,
+    color: Colors.white,
   },
   headerSubtitle: {
-    fontSize: 14,
-    color: '#ffffff',
-    marginTop: 4,
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 5,
   },
-  headerProgress: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginTop: 2,
+  scrollContent: {
+    padding: 20,
   },
-  timerBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  timerText: {
-    color: '#ffffff',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  progressContainer: {
-    height: 4,
-    backgroundColor: '#e0e0e0',
-  },
-  progressBar: {
-    height: 4,
-    backgroundColor: '#FF6B35',
-  },
-  chapterList: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+  sectionTitle: {
+    fontSize: 18,
+    fontFamily: Fonts.bold,
+    color: Colors.gray800,
+    marginBottom: 20,
   },
   chapterCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
+    backgroundColor: Colors.white,
     padding: 16,
+    borderRadius: 20,
     marginBottom: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#FF6B35',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    ...Shadows.md,
   },
-  chapterContent: {
+  chapterIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: Colors.primaryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  chapterInfo: {
     flex: 1,
   },
-  chapterNumber: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FF6B35',
-    marginBottom: 4,
-  },
-  chapterTitle: {
+  chapterName: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 8,
+    fontFamily: Fonts.semibold,
+    color: Colors.gray900,
   },
   questionCount: {
+    fontSize: 13,
+    color: Colors.gray500,
+    marginTop: 2,
+  },
+  quizHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    padding: 16,
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.gray200,
   },
-  questionCountText: {
-    fontSize: 12,
-    color: '#FF6B35',
-    fontWeight: '600',
+  backBtn: {
+    padding: 8,
   },
-  questionContainer: {
+  progressWrapper: {
     flex: 1,
+    paddingHorizontal: 15,
   },
-  questionContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 20,
+  progressBarBg: {
+    height: 8,
+    backgroundColor: Colors.gray100,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: Colors.primary,
+  },
+  progressText: {
+    fontSize: 11,
+    color: Colors.gray500,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  scoreBadge: {
+    backgroundColor: Colors.primaryLight,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  scoreBadgeText: {
+    fontSize: 12,
+    fontFamily: Fonts.bold,
+    color: Colors.primary,
+  },
+  quizContent: {
+    padding: 20,
   },
   questionCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  difficultyBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#FFF3E0',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-    marginBottom: 12,
-  },
-  difficultyText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FF6B35',
+    backgroundColor: Colors.white,
+    padding: 24,
+    borderRadius: 24,
+    marginBottom: 24,
+    ...Shadows.lg,
   },
   questionText: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    lineHeight: 26,
+    fontFamily: Fonts.semibold,
+    color: Colors.gray900,
+    lineHeight: 28,
   },
   optionsContainer: {
     gap: 12,
-    marginBottom: 20,
   },
-  optionButton: {
+  optionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
+    backgroundColor: Colors.white,
     padding: 16,
+    borderRadius: 18,
     borderWidth: 2,
-    borderColor: '#e8e8e8',
-    gap: 12,
+    borderColor: 'transparent',
+    ...Shadows.sm,
   },
-  optionCorrect: {
-    borderColor: '#4CAF50',
-    backgroundColor: '#F1F8E9',
+  selectedOption: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryLight,
   },
-  optionIncorrect: {
-    borderColor: '#f44336',
-    backgroundColor: '#FFEBEE',
+  correctOption: {
+    borderColor: Colors.success,
+    backgroundColor: Colors.successLight,
   },
-  optionIndicator: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f5f5f5',
+  wrongOption: {
+    borderColor: Colors.error,
+    backgroundColor: Colors.errorLight,
+  },
+  optionIndex: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: Colors.gray100,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#e8e8e8',
+    marginRight: 16,
   },
-  indicatorCorrect: {
-    backgroundColor: '#4CAF50',
-    borderColor: '#4CAF50',
-  },
-  indicatorIncorrect: {
-    backgroundColor: '#f44336',
-    borderColor: '#f44336',
-  },
-  optionLetter: {
+  optionIndexText: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#666',
+    fontFamily: Fonts.bold,
+    color: Colors.gray600,
+  },
+  selectedOptionIndexText: {
+    color: Colors.primary,
   },
   optionText: {
     flex: 1,
-    fontSize: 15,
-    color: '#1a1a1a',
-    fontWeight: '500',
+    fontSize: 16,
+    color: Colors.gray800,
+  },
+  selectedOptionText: {
+    color: Colors.primary,
+    fontFamily: Fonts.semibold,
+  },
+  correctOptionText: {
+    color: Colors.successDark,
+    fontFamily: Fonts.semibold,
+  },
+  wrongOptionText: {
+    color: Colors.errorDark,
+    fontFamily: Fonts.semibold,
   },
   explanationCard: {
-    backgroundColor: '#E3F2FD',
-    borderLeftWidth: 4,
-    borderLeftColor: '#2196F3',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 20,
+    marginTop: 24,
+    padding: 20,
+    backgroundColor: Colors.warningLight,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.2)',
+  },
+  explanationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
   },
   explanationTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#1565C0',
-    marginBottom: 8,
+    fontSize: 15,
+    fontFamily: Fonts.bold,
+    color: Colors.warningDark,
   },
   explanationText: {
-    fontSize: 13,
-    color: '#0D47A1',
+    fontSize: 14,
+    color: Colors.warningDark,
     lineHeight: 20,
   },
-  navigationContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+  footer: {
+    padding: 20,
+    backgroundColor: Colors.white,
+    borderTopWidth: 1,
+    borderTopColor: Colors.gray200,
   },
-  navButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+  actionBtn: {
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: Colors.primary,
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#FF6B35',
-  },
-  navButtonDisabled: {
-    opacity: 0.5,
-  },
-  navButtonText: {
-    color: '#FF6B35',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  finishButton: {
-    backgroundColor: '#FF6B35',
-    borderColor: '#FF6B35',
-  },
-  finishButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  skipContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  skipButton: {
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#FF6B35',
     alignItems: 'center',
+    ...Shadows.md,
   },
-  skipButtonText: {
-    color: '#FF6B35',
-    fontSize: 14,
-    fontWeight: '600',
+  actionBtnText: {
+    color: Colors.white,
+    fontSize: 16,
+    fontFamily: Fonts.bold,
   },
-  resultsContainer: {
-    flex: 1,
+  disabledBtn: {
+    backgroundColor: Colors.gray300,
   },
-  resultsContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 20,
+  finishedScroll: {
+    flexGrow: 1,
   },
-  scoreCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
+  finishedContainer: {
     padding: 24,
     alignItems: 'center',
+  },
+  resultEmoji: {
+    marginTop: 20,
     marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
   },
-  scoreLabel: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 8,
-  },
-  scoreValue: {
-    fontSize: 48,
-    fontWeight: '700',
-    color: '#FF6B35',
-    marginBottom: 4,
-  },
-  scorePercentage: {
+  finishedTitle: {
     fontSize: 24,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    marginBottom: 16,
+    fontFamily: Fonts.bold,
+    color: Colors.gray900,
+    textAlign: 'center',
   },
-  performanceBadge: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  performanceText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  detailsCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  detailsTitle: {
+  finishedSubtitle: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 16,
+    color: Colors.gray500,
+    marginTop: 8,
+    textAlign: 'center',
+    paddingHorizontal: 20,
   },
-  detailRow: {
+  resultCard: {
     flexDirection: 'row',
-    gap: 16,
+    backgroundColor: Colors.white,
+    padding: 24,
+    borderRadius: 24,
+    marginVertical: 32,
+    width: '100%',
+    ...Shadows.lg,
   },
-  detailItem: {
+  resultStat: {
     flex: 1,
     alignItems: 'center',
   },
-  detailLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 8,
+  resultValue: {
+    fontSize: 24,
+    fontFamily: Fonts.bold,
   },
-  detailValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1a1a1a',
+  resultLabel: {
+    fontSize: 12,
+    color: Colors.gray500,
     marginTop: 4,
   },
-  reviewCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+  resultDivider: {
+    width: 1,
+    height: '100%',
+    backgroundColor: Colors.gray100,
   },
-  reviewTitle: {
+  actionGrid: {
+    width: '100%',
+    gap: 12,
+  },
+  primaryBtn: {
+    height: 56,
+    borderRadius: 18,
+    overflow: 'hidden',
+    ...Shadows.md,
+  },
+  btnGradient: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  primaryBtnText: {
+    color: Colors.white,
     fontSize: 16,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 16,
+    fontFamily: Fonts.bold,
   },
-  reviewItem: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e8e8e8',
-  },
-  reviewIndicator: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  secondaryBtn: {
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: Colors.gray100,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  reviewContent: {
-    flex: 1,
-  },
-  reviewQuestion: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    marginBottom: 4,
-  },
-  reviewAnswer: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 4,
-  },
-  correctAnswer: {
-    fontSize: 12,
-    color: '#4CAF50',
-    fontWeight: '600',
-  },
-  actionContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  retakeButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#FF6B35',
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  retakeButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  backButton2: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    borderWidth: 2,
-    borderColor: '#FF6B35',
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  backButtonText: {
-    color: '#FF6B35',
-    fontSize: 14,
-    fontWeight: '600',
+  secondaryBtnText: {
+    color: Colors.gray700,
+    fontSize: 16,
+    fontFamily: Fonts.semibold,
   },
 });

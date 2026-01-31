@@ -3,377 +3,178 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
+  ScrollView,
+  Image,
   Alert,
-  StatusBar,
-  TextInput,
-  Modal,
   Switch,
-  ActivityIndicator,
+  Platform,
+  Dimensions,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect, useRouter } from 'expo-router';
-import {
-  getProfile,
-  updateProfile,
-  updateFavoriteSubjects,
-  updateLearningStyle,
-  updateWeeklyGoal,
-  StudentProfile,
-} from '@/storage/profileStore';
-import { logoutUser, getAuthSession } from '@/storage/authstore';
+import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
+import { getProfile, updateProfile } from '@/storage/profileStore';
+import { Colors, Fonts, Shadows, Spacing, BorderRadius } from '@/styles/designSystem';
+
+const { width } = Dimensions.get('window');
 
 export default function ProfileScreen() {
-  const [profile, setProfile] = useState<StudentProfile | null>(null);
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [tempName, setTempName] = useState('');
-  const [editingGrade, setEditingGrade] = useState(false);
-  const [selectedGrade, setSelectedGrade] = useState('Class 5');
-  const [editingSubjects, setEditingSubjects] = useState(false);
-  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
-  const [editingLearningStyle, setEditingLearningStyle] = useState(false);
-  const [editingGoal, setEditingGoal] = useState(false);
-  const [tempGoal, setTempGoal] = useState('');
-  const [userEmail, setUserEmail] = useState('');
   const router = useRouter();
+  const [profile, setProfile] = useState<any>(null);
+  const [notifications, setNotifications] = useState(true);
+  const [studyReminders, setStudyReminders] = useState(true);
 
-  const grades = ['Class 5', 'Class 6', 'Class 7', 'Class 8', 'Class 9'];
-  const subjects = [
-    'Math',
-    'Science',
-    'English',
-    'History',
-    'Geography',
-    'Computer Science',
-  ];
-  const learningStyles = [
-    { id: 'visual', name: 'Visual', emoji: '👀' },
-    { id: 'auditory', name: 'Auditory', emoji: '👂' },
-    { id: 'reading', name: 'Reading', emoji: '📖' },
-    { id: 'kinesthetic', name: 'Kinesthetic', emoji: '🤲' },
-  ];
-
-  useFocusEffect(
-    React.useCallback(() => {
-      loadProfile();
-      loadUserEmail();
-    }, [])
-  );
-
-  const loadUserEmail = async () => {
-    try {
-      const session = await getAuthSession();
-      if (session) {
-        setUserEmail(session.email);
-      }
-    } catch (error) {
-      console.error('Error loading user email:', error);
-    }
-  };
-
-  const handleLogout = async () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        {
-          text: 'Cancel',
-          onPress: () => {},
-          style: 'cancel',
-        },
-        {
-          text: 'Logout',
-          onPress: async () => {
-            try {
-              await logoutUser();
-              router.replace('/');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to logout');
-            }
-          },
-          style: 'destructive',
-        },
-      ]
-    );
-  };
+  useEffect(() => {
+    loadProfile();
+  }, []);
 
   const loadProfile = async () => {
     try {
-      const userProfile = await getProfile();
-      setProfile(userProfile);
-      setTempName(userProfile.name);
-      setSelectedGrade(userProfile.grade);
-      setSelectedSubjects([...userProfile.favoriteSubjects]);
-      setTempGoal(userProfile.weeklyGoal.toString());
+      const data = await getProfile();
+      if (data) setProfile(data);
     } catch (error) {
       console.error('Error loading profile:', error);
     }
   };
 
-  const handleSaveName = async () => {
-    if (!tempName.trim()) {
-      Alert.alert('Error', 'Name cannot be empty');
-      return;
-    }
-    try {
-      if (profile) {
-        await updateProfile({ ...profile, name: tempName });
-        setProfile({ ...profile, name: tempName });
-        setIsEditingName(false);
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to update name');
-    }
-  };
-
-  const handleUpdateLearningStyle = async (styleId: string) => {
-    try {
-      if (profile) {
-        await updateLearningStyle(styleId as 'visual' | 'auditory' | 'reading' | 'kinesthetic');
-        setProfile({ ...profile, learningStyle: styleId as 'visual' | 'auditory' | 'reading' | 'kinesthetic' });
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to update learning style');
-    }
-  };
-
-  const handleSaveGrade = async () => {
-    try {
-      if (profile) {
-        await updateProfile({ ...profile, grade: selectedGrade });
-        setProfile({ ...profile, grade: selectedGrade });
-        setEditingGrade(false);
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to update grade');
-    }
-  };
-
-  const handleToggleSubject = (subject: string) => {
-    if (selectedSubjects.includes(subject)) {
-      setSelectedSubjects(selectedSubjects.filter((s) => s !== subject));
-    } else {
-      setSelectedSubjects([...selectedSubjects, subject]);
-    }
-  };
-
-  const handleSaveSubjects = async () => {
-    if (selectedSubjects.length === 0) {
-      Alert.alert('Error', 'Please select at least one subject');
-      return;
-    }
-    try {
-      if (profile) {
-        await updateFavoriteSubjects(selectedSubjects);
-        await updateProfile({
-          ...profile,
-          favoriteSubjects: selectedSubjects,
-        });
-        setProfile({
-          ...profile,
-          favoriteSubjects: selectedSubjects,
-        });
-        setEditingSubjects(false);
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to update subjects');
-    }
-  };
-
-  const handleSaveLearningStyle = async (
-    style: 'visual' | 'auditory' | 'reading' | 'kinesthetic'
-  ) => {
-    try {
-      if (profile) {
-        await updateLearningStyle(style);
-        await updateProfile({ ...profile, learningStyle: style });
-        setProfile({ ...profile, learningStyle: style });
-        setEditingLearningStyle(false);
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to update learning style');
-    }
-  };
-
-  const handleSaveGoal = async () => {
-    const minutes = parseInt(tempGoal);
-    if (isNaN(minutes) || minutes <= 0) {
-      Alert.alert('Error', 'Please enter a valid number of minutes');
-      return;
-    }
-    try {
-      if (profile) {
-        await updateWeeklyGoal(minutes);
-        await updateProfile({ ...profile, weeklyGoal: minutes });
-        setProfile({ ...profile, weeklyGoal: minutes });
-        setEditingGoal(false);
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to update goal');
-    }
-  };
-
-  if (!profile) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <ActivityIndicator size="large" color="#2196F3" />
-      </SafeAreaView>
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to log out?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Logout', 
+          style: 'destructive',
+          onPress: () => {
+            // We should clear the store here in a real app
+            router.replace('/');
+          }
+        },
+      ]
     );
-  }
+  };
+
+  const STATS = [
+    { label: 'Chapters', value: '12', icon: 'book', color: '#6366F1' },
+    { label: 'Quizzes', value: '45', icon: 'check-circle', color: '#10B981' },
+    { label: 'Streak', value: '7', icon: 'fire', color: '#F59E0B' },
+  ];
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
-
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <StatusBar barStyle="light-content" />
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton}>
-            <Text style={styles.backButtonText}>‹</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Create Profile</Text>
-          <View style={styles.headerSpacer} />
-        </View>
-
-        {/* Main Content */}
-        <View style={styles.contentContainer}>
-          <Text style={styles.mainTitle}>Let's set up your profile</Text>
-          <Text style={styles.subtitle}>Help us personalize your learning experience with NCERT resources.</Text>
-
-          {/* Avatar Section */}
-          <View style={styles.avatarSection}>
-            <View style={styles.avatarPlaceholder}>
-              <Text style={styles.avatarText}>👤</Text>
-            </View>
-            <Text style={styles.uploadText}>Upload Photo</Text>
-          </View>
-
-          {/* Full Name */}
-          <View style={styles.section}>
-            <Text style={styles.label}>Full Name</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your full name"
-              value={tempName}
-              onChangeText={setTempName}
-              maxLength={30}
-            />
-          </View>
-
-          {/* Class Selection */}
-          <View style={styles.section}>
-            <Text style={styles.label}>Which class are you in?</Text>
-            <View style={styles.classGrid}>
-              {grades.map((grade, idx) => (
-                <TouchableOpacity
-                  key={idx}
-                  style={[
-                    styles.classButton,
-                    selectedGrade === grade && styles.classButtonSelected,
-                  ]}
-                  onPress={() => setSelectedGrade(grade)}
-                >
-                  <Text
-                    style={[
-                      styles.classButtonText,
-                      selectedGrade === grade && styles.classButtonTextSelected,
-                    ]}
-                  >
-                    {grade.split(' ')[1]}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Board Selection */}
-          <View style={styles.section}>
-            <Text style={styles.label}>Select your Board</Text>
-            <View style={styles.boardContainer}>
-              <TouchableOpacity style={styles.boardOption}>
-                <Text style={styles.boardIcon}>📚</Text>
-                <Text style={styles.boardName}>CBSE</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.boardOption}>
-                <Text style={styles.boardIcon}>📖</Text>
-                <Text style={styles.boardName}>State Board</Text>
+        {/* Profile Header */}
+        <LinearGradient
+          colors={['#6366F1', '#4F46E5']}
+          style={styles.header}
+        >
+          <View style={styles.headerContent}>
+            <View style={styles.avatarContainer}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {profile?.name ? profile.name.charAt(0).toUpperCase() : 'S'}
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.editAvatarBtn}>
+                <Ionicons name="camera" size={18} color={Colors.white} />
               </TouchableOpacity>
             </View>
+            <Text style={styles.userName}>{profile?.name || 'Student'}</Text>
+            <Text style={styles.userGrade}>{profile?.grade || 'Class 9th'} • Science Stream</Text>
+          </View>
+        </LinearGradient>
+
+        <View style={styles.content}>
+          {/* Stats Section */}
+          <View style={styles.statsCard}>
+            {STATS.map((stat, index) => (
+              <View key={index} style={styles.statItem}>
+                <View style={[styles.statIconBg, { backgroundColor: stat.color + '20' }]}>
+                  <FontAwesome5 name={stat.icon} size={18} color={stat.color} />
+                </View>
+                <Text style={styles.statValue}>{stat.value}</Text>
+                <Text style={styles.statLabel}>{stat.label}</Text>
+              </View>
+            ))}
           </View>
 
-          {/* Favorite Subjects */}
-          <View style={styles.section}>
-            <Text style={styles.label}>Favorite Subjects</Text>
-            <View style={styles.subjectsContainer}>
-              {subjects.map((subject, idx) => (
-                <TouchableOpacity
-                  key={idx}
-                  style={[
-                    styles.subjectTag,
-                    selectedSubjects.includes(subject) && styles.subjectTagSelected,
-                  ]}
-                  onPress={() => handleToggleSubject(subject)}
-                >
-                  <Text
-                    style={[
-                      styles.subjectTagText,
-                      selectedSubjects.includes(subject) && styles.subjectTagTextSelected,
-                    ]}
-                  >
-                    {subject}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+          {/* Settings Section */}
+          <Text style={styles.sectionTitle}>Learning Preferences</Text>
+          <View style={styles.settingsGroup}>
+            <View style={styles.settingItem}>
+              <View style={styles.settingInfo}>
+                <View style={[styles.settingIconBg, { backgroundColor: '#EEF2FF' }]}>
+                  <Ionicons name="notifications" size={20} color={Colors.primary} />
+                </View>
+                <Text style={styles.settingLabel}>Notifications</Text>
+              </View>
+              <Switch
+                value={notifications}
+                onValueChange={setNotifications}
+                trackColor={{ false: '#E2E8F0', true: '#A5B4FC' }}
+                thumbColor={notifications ? Colors.primary : '#F8FAFC'}
+              />
+            </View>
+
+            <View style={styles.settingItem}>
+              <View style={styles.settingInfo}>
+                <View style={[styles.settingIconBg, { backgroundColor: '#F0FDF4' }]}>
+                  <MaterialIcons name="alarm" size={20} color={Colors.success} />
+                </View>
+                <Text style={styles.settingLabel}>Study Reminders</Text>
+              </View>
+              <Switch
+                value={studyReminders}
+                onValueChange={setStudyReminders}
+                trackColor={{ false: '#E2E8F0', true: '#A5B4FC' }}
+                thumbColor={studyReminders ? Colors.primary : '#F8FAFC'}
+              />
             </View>
           </View>
 
-          {/* Learning Style */}
-          <View style={styles.section}>
-            <Text style={styles.label}>Learning Style</Text>
-            <View style={styles.learningStyleContainer}>
-              {learningStyles.map((style, idx) => (
-                <TouchableOpacity
-                  key={idx}
-                  style={[
-                    styles.styleCard,
-                    profile.learningStyle === style.id && styles.styleCardSelected,
-                  ]}
-                  onPress={() => handleUpdateLearningStyle(style.id)}
-                >
-                  <Text style={styles.styleEmoji}>{style.emoji}</Text>
-                  <Text style={styles.styleName}>{style.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+          <Text style={styles.sectionTitle}>Account</Text>
+          <View style={styles.settingsGroup}>
+            <TouchableOpacity style={styles.menuItem}>
+              <View style={styles.settingInfo}>
+                <View style={[styles.settingIconBg, { backgroundColor: '#F8FAFC' }]}>
+                  <Ionicons name="person" size={20} color={Colors.gray600} />
+                </View>
+                <Text style={styles.settingLabel}>Edit Profile</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Colors.gray400} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.menuItem}>
+              <View style={styles.settingInfo}>
+                <View style={[styles.settingIconBg, { backgroundColor: '#F8FAFC' }]}>
+                  <Ionicons name="shield-checkmark" size={20} color={Colors.gray600} />
+                </View>
+                <Text style={styles.settingLabel}>Privacy & Security</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Colors.gray400} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
+              <View style={styles.settingInfo}>
+                <View style={[styles.settingIconBg, { backgroundColor: '#FEF2F2' }]}>
+                  <Ionicons name="log-out" size={20} color={Colors.error} />
+                </View>
+                <Text style={[styles.settingLabel, { color: Colors.error }]}>Log Out</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Colors.gray400} />
+            </TouchableOpacity>
           </View>
 
-          {/* Save Button */}
-          <TouchableOpacity
-            style={styles.saveButton}
-            onPress={handleSaveName}
-          >
-            <Text style={styles.saveButtonText}>Continue</Text>
-          </TouchableOpacity>
-
-          {/* User Email Display */}
-          {userEmail && (
-            <View style={styles.userEmailSection}>
-              <Text style={styles.userEmailLabel}>Logged in as</Text>
-              <Text style={styles.userEmail}>{userEmail}</Text>
-            </View>
-          )}
-
-          {/* Logout Button */}
-          <TouchableOpacity
-            style={styles.logoutButton}
-            onPress={handleLogout}
-          >
-            <Text style={styles.logoutButtonText}>Logout</Text>
-          </TouchableOpacity>
+          <View style={styles.versionContainer}>
+            <Text style={styles.versionText}>Siksha AI v1.0.0</Text>
+            <Text style={styles.versionText}>Made with ❤️ for students</Text>
+          </View>
         </View>
-
-        <View style={{ height: 20 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -382,241 +183,144 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: Colors.background,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    paddingBottom: 40,
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
+  },
+  headerContent: {
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#2196F3',
+    paddingTop: 20,
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
+  avatarContainer: {
+    position: 'relative',
+    marginBottom: 15,
   },
-  backButtonText: {
-    fontSize: 28,
-    color: '#ffffff',
-    fontWeight: '300',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#ffffff',
-  },
-  headerSpacer: {
-    width: 40,
-  },
-  contentContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 24,
-  },
-  mainTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
-    marginBottom: 24,
-  },
-  avatarSection: {
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  avatarPlaceholder: {
+  avatar: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#E3F2FD',
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.5)',
   },
   avatarText: {
-    fontSize: 48,
+    fontSize: 40,
+    fontFamily: Fonts.bold,
+    color: Colors.white,
   },
-  uploadText: {
-    fontSize: 13,
-    color: '#2196F3',
-    fontWeight: '600',
-  },
-  section: {
-    marginBottom: 24,
-  },
-  label: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#999',
-    marginBottom: 8,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#1a1a1a',
-    backgroundColor: '#ffffff',
-  },
-  classGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  classButton: {
-    flex: 1,
-    minWidth: '30%',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderWidth: 2,
-    borderColor: '#ddd',
-    borderRadius: 8,
+  editAvatarBtn: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: '#6366F1',
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
+    borderWidth: 3,
+    borderColor: '#4F46E5',
+    elevation: 4,
   },
-  classButtonSelected: {
-    borderColor: '#2196F3',
-    backgroundColor: '#E3F2FD',
+  userName: {
+    fontSize: 24,
+    fontFamily: Fonts.bold,
+    color: Colors.white,
   },
-  classButtonText: {
+  userGrade: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 4,
   },
-  classButtonTextSelected: {
-    color: '#2196F3',
+  content: {
+    padding: 20,
+    marginTop: -30,
   },
-  boardContainer: {
+  statsCard: {
     flexDirection: 'row',
-    gap: 12,
+    backgroundColor: Colors.white,
+    borderRadius: 24,
+    padding: 20,
+    ...Shadows.md,
+    marginBottom: 25,
   },
-  boardOption: {
+  statItem: {
     flex: 1,
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    borderWidth: 2,
-    borderColor: '#ddd',
-    borderRadius: 8,
     alignItems: 'center',
-    backgroundColor: '#ffffff',
   },
-  boardIcon: {
-    fontSize: 28,
+  statIconBg: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 8,
   },
-  boardName: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#666',
+  statValue: {
+    fontSize: 18,
+    fontFamily: Fonts.bold,
+    color: Colors.gray900,
   },
-  subjectsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  subjectTag: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
-  },
-  subjectTagSelected: {
-    borderColor: '#2196F3',
-    backgroundColor: '#E3F2FD',
-  },
-  subjectTagText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#666',
-  },
-  subjectTagTextSelected: {
-    color: '#2196F3',
-  },
-  learningStyleContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  styleCard: {
-    flex: 1,
-    minWidth: '48%',
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    borderWidth: 2,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    alignItems: 'center',
-    backgroundColor: '#ffffff',
-  },
-  styleCardSelected: {
-    borderColor: '#2196F3',
-    backgroundColor: '#E3F2FD',
-  },
-  styleEmoji: {
-    fontSize: 28,
-    marginBottom: 8,
-  },
-  styleName: {
+  statLabel: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#666',
-    textAlign: 'center',
+    color: Colors.gray500,
+    marginTop: 2,
   },
-  saveButton: {
-    backgroundColor: '#2196F3',
-    paddingVertical: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  saveButtonText: {
-    color: '#ffffff',
+  sectionTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: Fonts.bold,
+    color: Colors.gray800,
+    marginBottom: 15,
+    marginLeft: 5,
   },
-  userEmailSection: {
-    marginTop: 24,
-    paddingVertical: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#e8e8e8',
+  settingsGroup: {
+    backgroundColor: Colors.white,
+    borderRadius: 24,
+    padding: 10,
+    marginBottom: 25,
+    ...Shadows.sm,
   },
-  userEmailLabel: {
+  settingItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+  },
+  settingInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  settingIconBg: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
+  },
+  settingLabel: {
+    fontSize: 15,
+    fontFamily: Fonts.medium,
+    color: Colors.gray800,
+  },
+  versionContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  versionText: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#999',
-    marginBottom: 4,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
-  userEmail: {
-    fontSize: 14,
-    color: '#1a1a1a',
-    fontWeight: '500',
-  },
-  logoutButton: {
-    backgroundColor: '#FF6B6B',
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 16,
-    marginBottom: 24,
-  },
-  logoutButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
+    color: Colors.gray400,
+    lineHeight: 18,
   },
 });

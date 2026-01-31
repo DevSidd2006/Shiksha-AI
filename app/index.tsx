@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { Redirect } from 'expo-router';
-import { isAuthenticated } from '@/storage/authstore';
+import { isAuthenticated } from '@/storage/authStore';
 import { AuthScreen } from '@/components/AuthScreen';
 
 export default function Index() {
@@ -22,8 +22,8 @@ export default function Index() {
 
   if (isAuth === null) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#2196F3" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' }}>
+        <ActivityIndicator size="large" color="#4F46E5" />
       </View>
     );
   }
@@ -32,5 +32,5 @@ export default function Index() {
     return <AuthScreen onAuthSuccess={handleAuthSuccess} />;
   }
 
-  return <Redirect href="/(tabs)/tutor" />;
+  return <Redirect href="/(tabs)/dashboard" />;
 }

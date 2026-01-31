@@ -6,11 +6,12 @@ import {
   StyleSheet,
   TouchableOpacity,
   StatusBar,
-  FlatList,
-  Modal,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons, Ionicons, FontAwesome5 } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Colors, Spacing, BorderRadius } from '@/styles/designSystem';
 
 // Import data with fallback
 let CLASS_9_SCIENCE_NOTES: any[] = [];
@@ -26,6 +27,8 @@ try {
   console.error('Failed to load notes data:', error);
 }
 
+const { width } = Dimensions.get('window');
+
 interface Chapter {
   id: number;
   title: string;
@@ -38,7 +41,7 @@ export default function NotesScreen() {
 
   const chapters: Chapter[] = [
     { id: 1, title: 'Matter in Our Surroundings' },
-    { id: 2, title: 'Is Matter Around Us Pure' },
+    { id: 2, title: 'Is Matter Around Us Pure?' },
     { id: 3, title: 'Atoms and Molecules' },
   ];
 
@@ -52,15 +55,16 @@ export default function NotesScreen() {
 
   if (!selectedChapter) {
     return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#FF6B35" />
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" />
+        <LinearGradient colors={['#6366F1', '#4F46E5'] as any} style={styles.header}>
+          <SafeAreaView edges={['top']}>
+            <Text style={styles.headerSubtitle}>Study Smart</Text>
+            <Text style={styles.headerTitle}>Class 9 Science Notes</Text>
+          </SafeAreaView>
+        </LinearGradient>
 
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>📘 Important Notes</Text>
-          <Text style={styles.headerSubtitle}>Class 9 Science</Text>
-        </View>
-
-        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <Text style={styles.sectionTitle}>Select a Chapter</Text>
           {chapters.map((chapter) => (
             <TouchableOpacity
@@ -68,22 +72,23 @@ export default function NotesScreen() {
               style={styles.chapterCard}
               onPress={() => setSelectedChapter(chapter.id)}
             >
-              <View style={styles.chapterCardContent}>
-                <View style={styles.chapterNumber}>
-                  <Text style={styles.chapterNumberText}>{chapter.id}</Text>
-                </View>
-                <View style={styles.chapterInfo}>
-                  <Text style={styles.chapterTitle}>{chapter.title}</Text>
-                  <Text style={styles.chapterPoints}>
-                    {CLASS_9_SCIENCE_NOTES[chapter.id - 1]?.points.length || 0} Important Points
-                  </Text>
-                </View>
+              <LinearGradient
+                colors={['#EEF2FF', '#E0E7FF'] as any}
+                style={styles.chapterIconBox}
+              >
+                <FontAwesome5 name="book-open" size={20} color={Colors.primary} />
+              </LinearGradient>
+              <View style={styles.chapterInfo}>
+                <Text style={styles.chapterTitle}>{chapter.title}</Text>
+                <Text style={styles.chapterPoints}>
+                  {CLASS_9_SCIENCE_NOTES[chapter.id - 1]?.points.length || 0} Key Concepts
+                </Text>
               </View>
-              <MaterialIcons name="arrow-forward" size={24} color="#FF6B35" />
+              <Ionicons name="chevron-forward" size={24} color={Colors.gray400} />
             </TouchableOpacity>
           ))}
         </ScrollView>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -102,30 +107,36 @@ export default function NotesScreen() {
     : chapterData.points;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#FF6B35" />
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      <LinearGradient colors={['#6366F1', '#4F46E5'] as any} style={styles.headerCompact}>
+        <SafeAreaView edges={['top']} style={styles.headerFlex}>
+          <TouchableOpacity onPress={() => setSelectedChapter(null)} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={Colors.white} />
+          </TouchableOpacity>
+          <View style={styles.headerContent}>
+            <Text style={styles.headerSubtitleCompact}>Chapter {selectedChapter}</Text>
+            <Text style={styles.headerTitleCompact} numberOfLines={1}>{chapterData.chapterTitle}</Text>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
 
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => setSelectedChapter(null)}>
-          <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
-        </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Chapter {selectedChapter}</Text>
-          <Text style={styles.headerSubtitle}>{chapterData.chapterTitle}</Text>
-        </View>
-        <View style={{ width: 24 }} />
-      </View>
-
-      <ScrollView style={styles.scrollView}>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Introduction */}
-        <View style={styles.introCard}>
-          <Text style={styles.introTitle}>Overview</Text>
+        <LinearGradient
+          colors={['#F1F5F9', '#F8FAFC'] as any}
+          style={styles.introCard}
+        >
+          <View style={styles.introHeader}>
+            <FontAwesome5 name="info-circle" size={16} color={Colors.primary} />
+            <Text style={styles.introTitle}>QUICK OVERVIEW</Text>
+          </View>
           <Text style={styles.introText}>{chapterData.introduction}</Text>
-        </View>
+        </LinearGradient>
 
         {/* Category Filter */}
         <View style={styles.categoryContainer}>
-          <Text style={styles.categoryTitle}>Categories</Text>
+          <Text style={styles.sectionTitleSmall}>CATEGORIES</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -156,17 +167,21 @@ export default function NotesScreen() {
 
         {/* Important Points */}
         <View style={styles.pointsContainer}>
-          <Text style={styles.pointsTitle}>
-            {selectedCategory ? `${selectedCategory} (${filteredPoints.length})` : `All Points (${chapterData.points.length})`}
+          <Text style={styles.sectionTitleSmall}>
+            {selectedCategory ? `${selectedCategory} (${filteredPoints.length})` : `ALL POINTS (${chapterData.points.length})`}
           </Text>
 
           {filteredPoints.map((point, index) => (
             <View key={point.id} style={styles.pointCard}>
               <View style={styles.pointHeader}>
-                <Text style={styles.pointIcon}>{point.icon}</Text>
+                <View style={styles.pointIconCircle}>
+                  <Text style={styles.pointIcon}>{point.icon}</Text>
+                </View>
                 <View style={styles.pointTitleContainer}>
                   <Text style={styles.pointTitle}>{point.title}</Text>
-                  <Text style={styles.pointCategory}>{point.category}</Text>
+                  <View style={styles.pointTag}>
+                    <Text style={styles.pointTagText}>{point.category}</Text>
+                  </View>
                 </View>
               </View>
               <Text style={styles.pointContent}>{point.content}</Text>
@@ -174,205 +189,233 @@ export default function NotesScreen() {
           ))}
         </View>
 
-        <View style={{ height: 20 }} />
+        <View style={{ height: 40 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#F8FAFC',
   },
   header: {
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: 40,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+  },
+  headerCompact: {
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: 20,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+  },
+  headerFlex: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FF6B35',
-    gap: 12,
+    gap: 15,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerContent: {
     flex: 1,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#ffffff',
+    fontSize: 28,
+    fontWeight: '800',
+    color: Colors.white,
+    marginTop: 5,
   },
   headerSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '600',
+    marginTop: 10,
+  },
+  headerTitleCompact: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: Colors.white,
+  },
+  headerSubtitleCompact: {
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.8)',
-    marginTop: 2,
+    fontWeight: '600',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    padding: Spacing.xl,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 12,
+    fontSize: 20,
+    fontWeight: '800',
+    color: Colors.gray900,
+    marginBottom: 20,
+  },
+  sectionTitleSmall: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: Colors.gray400,
+    marginBottom: 15,
+    letterSpacing: 1,
   },
   chapterCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#FF6B35',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  chapterCardContent: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  chapterNumber: {
-    width: 40,
-    height: 40,
+    backgroundColor: Colors.white,
     borderRadius: 20,
-    backgroundColor: '#FF6B35',
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    ...Colors.cardShadow as any,
+  },
+  chapterIconBox: {
+    width: 50,
+    height: 50,
+    borderRadius: 15,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
-  },
-  chapterNumberText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#ffffff',
+    marginRight: 15,
   },
   chapterInfo: {
     flex: 1,
   },
   chapterTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
-    color: '#1a1a1a',
+    color: Colors.gray900,
     marginBottom: 4,
   },
   chapterPoints: {
-    fontSize: 12,
-    color: '#666',
+    fontSize: 13,
+    color: Colors.gray500,
   },
   errorText: {
     fontSize: 16,
-    color: '#f44336',
+    color: Colors.error,
     textAlign: 'center',
-    marginTop: 20,
+    marginTop: 40,
   },
   introCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 16,
-    borderLeftWidth: 4,
-    borderLeftColor: '#FF6B35',
+    borderRadius: 20,
+    padding: Spacing.lg,
+    marginHorizontal: Spacing.xl,
+    marginTop: Spacing.xl,
+    marginBottom: Spacing.xl,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  introHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
   },
   introTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FF6B35',
-    marginBottom: 8,
+    fontSize: 12,
+    fontWeight: '800',
+    color: Colors.primary,
+    letterSpacing: 1,
   },
   introText: {
-    fontSize: 13,
-    color: '#666',
-    lineHeight: 20,
+    fontSize: 14,
+    color: Colors.gray600,
+    lineHeight: 22,
+    fontWeight: '500',
   },
   categoryContainer: {
-    paddingHorizontal: 16,
-    marginBottom: 16,
-  },
-  categoryTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 8,
+    paddingHorizontal: Spacing.xl,
+    marginBottom: Spacing.xl,
   },
   categoryScroll: {
-    marginHorizontal: -16,
-    paddingHorizontal: 16,
+    marginHorizontal: -Spacing.xl,
+    paddingHorizontal: Spacing.xl,
   },
   categoryContent: {
-    gap: 8,
+    gap: 10,
   },
   categoryButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    backgroundColor: '#ffffff',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 25,
+    backgroundColor: Colors.white,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: '#E2E8F0',
   },
   categoryButtonActive: {
-    backgroundColor: '#FF6B35',
-    borderColor: '#FF6B35',
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
   categoryButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#666',
-  },
-  categoryButtonTextActive: {
-    color: '#ffffff',
-  },
-  pointsContainer: {
-    paddingHorizontal: 16,
-  },
-  pointsTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 12,
+    color: Colors.gray500,
+  },
+  categoryButtonTextActive: {
+    color: Colors.white,
+  },
+  pointsContainer: {
+    paddingHorizontal: Spacing.xl,
   },
   pointCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#FF6B35',
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    ...Colors.cardShadow as any,
   },
   pointHeader: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 12,
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  pointIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F8FAFC',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
   },
   pointIcon: {
-    fontSize: 24,
-    marginRight: 12,
+    fontSize: 20,
   },
   pointTitleContainer: {
     flex: 1,
+    gap: 3,
   },
   pointTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 4,
+    fontSize: 16,
+    fontWeight: '800',
+    color: Colors.gray900,
   },
-  pointCategory: {
-    fontSize: 11,
-    color: '#FF6B35',
-    fontWeight: '600',
+  pointTag: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  pointTagText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.primary,
+    textTransform: 'uppercase',
   },
   pointContent: {
-    fontSize: 13,
-    color: '#666',
-    lineHeight: 20,
+    fontSize: 15,
+    color: Colors.gray600,
+    lineHeight: 24,
+    fontWeight: '500',
   },
 });

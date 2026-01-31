@@ -9,23 +9,42 @@ import {
   ScrollView,
   StatusBar,
   Image,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Picker } from '@react-native-picker/picker';
+import { MaterialIcons, Ionicons, FontAwesome5 } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { deleteAllChats } from '@/storage/chatStore';
-import { getOfflineMode, setOfflineMode } from '@/storage/settingsStore';
-import { INDIAN_LANGUAGES } from '@/services/speechToText';
+import { getOfflineMode, setOfflineMode, getPreferredLanguage, setPreferredLanguage } from '@/storage/settingsStore';
 import { getProfile } from '@/storage/profileStore';
+import { Colors, Spacing, BorderRadius, Fonts, Shadows } from '@/styles/designSystem';
+
+const LANGUAGES = [
+  'English',
+  'Hindi',
+  'Bengali',
+  'Marathi',
+  'Telugu',
+  'Tamil',
+  'Gujarati',
+  'Kannada',
+  'Odia',
+  'Malayalam',
+  'Punjabi',
+];
 
 export default function SettingsScreen() {
-  const [language, setLanguage] = useState('en-IN');
   const [offlineMode, setOfflineModeState] = useState(false);
+  const [preferredLang, setPreferredLang] = useState('English');
   const [profile, setProfile] = useState<any>(null);
 
   useEffect(() => {
     (async () => {
       const stored = await getOfflineMode();
       setOfflineModeState(stored);
+
+      const lang = await getPreferredLanguage();
+      setPreferredLang(lang);
       
       try {
         const userProfile = await getProfile();
@@ -39,6 +58,16 @@ export default function SettingsScreen() {
   const handleOfflineToggle = async (value: boolean) => {
     setOfflineModeState(value);
     await setOfflineMode(value);
+  };
+
+  const handleLanguageChange = async () => {
+    // Basic cycling for demo, or show a picker
+    const currentIndex = LANGUAGES.indexOf(preferredLang);
+    const nextIndex = (currentIndex + 1) % LANGUAGES.length;
+    const nextLang = LANGUAGES[nextIndex];
+    
+    setPreferredLang(nextLang);
+    await setPreferredLanguage(nextLang);
   };
 
   const handleClearHistory = () => {
@@ -59,311 +88,266 @@ export default function SettingsScreen() {
     );
   };
 
-  const handleSignOut = () => {
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: () => {
-            // Handle sign out logic
-            Alert.alert('Signed Out', 'You have been signed out');
-          },
-        },
-      ]
-    );
-  };
-
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
       
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton}>
-            <Text style={styles.backButtonText}>‹</Text>
-          </TouchableOpacity>
+      <LinearGradient colors={['#6366F1', '#4F46E5']} style={styles.header}>
+        <SafeAreaView edges={['top']}>
           <Text style={styles.headerTitle}>Settings</Text>
-          <View style={styles.headerSpacer} />
-        </View>
-
-        {/* User Profile Card */}
-        {profile && (
-          <View style={styles.profileCard}>
+          <View style={styles.profileRow}>
             <View style={styles.profileAvatar}>
-              <Text style={styles.avatarText}>{profile.name?.charAt(0) || 'R'}</Text>
+              <Text style={styles.avatarText}>{profile?.name?.charAt(0) || 'S'}</Text>
             </View>
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>{profile.name || 'Rahul Kumar'}</Text>
-              <Text style={styles.profileGrade}>{profile.grade || 'Class 10'} • CBSE</Text>
+              <Text style={styles.profileName}>{profile?.name || 'Siksha Student'}</Text>
+              <Text style={styles.profileGrade}>{profile?.grade || 'Class 9'} • {profile?.board || 'CBSE'}</Text>
             </View>
-            <TouchableOpacity>
-              <Text style={styles.profileIcon}>›</Text>
-            </TouchableOpacity>
           </View>
-        )}
+        </SafeAreaView>
+      </LinearGradient>
 
-        {/* Content & Learning Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>CONTENT & LEARNING</Text>
-          <View style={styles.card}>
-            <TouchableOpacity style={styles.settingItem}>
-              <View style={styles.settingContent}>
-                <Text style={styles.settingLabel}>Grade & Board</Text>
-                <Text style={styles.settingValue}>{profile?.grade || 'Class 10'} • CBSE</Text>
-              </View>
-              <Text style={styles.settingArrow}>›</Text>
-            </TouchableOpacity>
-            
-            <View style={styles.divider} />
-            
-            <TouchableOpacity style={styles.settingItem}>
-              <View style={styles.settingContent}>
-                <Text style={styles.settingLabel}>Offline Storage</Text>
-                <Text style={styles.settingValue}>2.4 GB</Text>
-              </View>
-              <Text style={styles.settingArrow}>›</Text>
-            </TouchableOpacity>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollPadding} showsVerticalScrollIndicator={false}>
+        <Text style={styles.sectionTitle}>Preferences</Text>
+        <View style={styles.card}>
+          <View style={styles.settingItem}>
+            <View style={[styles.iconBox, { backgroundColor: '#EEF2FF' }]}>
+              <Ionicons name="cloud-offline-outline" size={20} color="#4F46E5" />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingLabel}>Offline Mode</Text>
+              <Text style={styles.settingHint}>Use AI without internet</Text>
+            </View>
+            <Switch
+              value={offlineMode}
+              onValueChange={handleOfflineToggle}
+              trackColor={{ false: '#E2E8F0', true: '#C7D2FE' }}
+              thumbColor={offlineMode ? '#4F46E5' : '#CBD5E1'}
+            />
           </View>
-        </View>
+          
+          <View style={styles.divider} />
 
-        {/* Preferences Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>PREFERENCES</Text>
-          <View style={styles.card}>
-            <TouchableOpacity style={styles.settingItem}>
-              <View style={styles.settingContent}>
-                <View style={styles.settingLabelRow}>
-                  <Text style={styles.settingIcon}>🔔</Text>
-                  <Text style={styles.settingLabel}>Notifications</Text>
-                </View>
-              </View>
-              <Switch
-                value={true}
-                trackColor={{ false: '#ccc', true: '#81c784' }}
-                thumbColor={true ? '#4caf50' : '#f4f3f4'}
-              />
-            </TouchableOpacity>
-            
-            <View style={styles.divider} />
-            
-            <TouchableOpacity style={styles.settingItem}>
-              <View style={styles.settingContent}>
-                <View style={styles.settingLabelRow}>
-                  <Text style={styles.settingIcon}>🤖</Text>
-                  <Text style={styles.settingLabel}>AI Assistant</Text>
-                </View>
-                <Text style={styles.settingHint}>Voice Mode Enabled</Text>
-              </View>
-              <Text style={styles.settingArrow}>›</Text>
-            </TouchableOpacity>
+          <TouchableOpacity style={styles.settingItem} onPress={handleLanguageChange}>
+            <View style={[styles.iconBox, { backgroundColor: '#FFF7ED' }]}>
+              <Ionicons name="language-outline" size={20} color="#F97316" />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingLabel}>Preferred Language</Text>
+              <Text style={styles.settingHint}>{preferredLang}</Text>
+            </View>
+            <MaterialIcons name="swap-horiz" size={20} color={Colors.gray400} />
+          </TouchableOpacity>
+          
+          <View style={styles.divider} />
+          
+          <View style={styles.settingItem}>
+            <View style={[styles.iconBox, { backgroundColor: '#F0FDF4' }]}>
+              <Ionicons name="notifications-outline" size={20} color="#10B981" />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingLabel}>Study Reminders</Text>
+              <Text style={styles.settingHint}>Daily learning prompts</Text>
+            </View>
+            <Switch
+              value={true}
+              trackColor={{ false: '#E2E8F0', true: '#C7D2FE' }}
+              thumbColor={'#4F46E5'}
+            />
           </View>
         </View>
 
-        {/* Support Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>SUPPORT</Text>
-          <View style={styles.card}>
-            <TouchableOpacity style={styles.settingItem}>
-              <View style={styles.settingContent}>
-                <View style={styles.settingLabelRow}>
-                  <Text style={styles.settingIcon}>❓</Text>
-                  <Text style={styles.settingLabel}>Help & Support</Text>
-                </View>
-              </View>
-              <Text style={styles.settingArrow}>›</Text>
-            </TouchableOpacity>
-            
-            <View style={styles.divider} />
-            
-            <TouchableOpacity style={styles.settingItem}>
-              <View style={styles.settingContent}>
-                <View style={styles.settingLabelRow}>
-                  <Text style={styles.settingIcon}>ℹ️</Text>
-                  <Text style={styles.settingLabel}>About App</Text>
-                </View>
-                <Text style={styles.settingHint}>Version 2.4.0</Text>
-              </View>
-              <Text style={styles.settingArrow}>›</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Sign Out Button */}
-        <View style={styles.bottomSection}>
-          <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-            <Text style={styles.signOutText}>Sign Out</Text>
+        <Text style={styles.sectionTitle}>Data Management</Text>
+        <View style={styles.card}>
+          <TouchableOpacity style={styles.settingItem} onPress={handleClearHistory}>
+            <View style={[styles.iconBox, { backgroundColor: '#FEF2F2' }]}>
+              <MaterialIcons name="delete-outline" size={20} color="#EF4444" />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingLabel}>Clear Chat History</Text>
+              <Text style={styles.settingHint}>Delete all past conversations</Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={24} color={Colors.gray400} />
           </TouchableOpacity>
         </View>
 
-        <View style={{ height: 20 }} />
+        <Text style={styles.sectionTitle}>About</Text>
+        <View style={styles.card}>
+          <TouchableOpacity style={styles.settingItem}>
+            <View style={[styles.iconBox, { backgroundColor: '#F8FAFC' }]}>
+              <Ionicons name="star-outline" size={20} color={Colors.gray600} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingLabel}>Rate Siksha AI</Text>
+              <Text style={styles.settingHint}>Support our development</Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={24} color={Colors.gray400} />
+          </TouchableOpacity>
+          <View style={styles.divider} />
+          <View style={styles.settingItem}>
+            <View style={[styles.iconBox, { backgroundColor: '#F8FAFC' }]}>
+              <Ionicons name="information-circle-outline" size={20} color={Colors.gray600} />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingLabel}>Version</Text>
+              <Text style={styles.settingHint}>Build 2.0.4 - Premium</Text>
+            </View>
+            <Text style={styles.versionText}>v1.0.0</Text>
+          </View>
+        </View>
+
+        <TouchableOpacity style={styles.signOutBtn}>
+          <MaterialIcons name="logout" size={20} color="#EF4444" />
+          <Text style={styles.signOutText}>Sign Out</Text>
+        </TouchableOpacity>
+        
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Made with ❤️ for Class 9 & 10 students</Text>
+        </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
-  },
-  scrollView: {
-    flex: 1,
+    backgroundColor: '#F8FAFC',
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  backButtonText: {
-    fontSize: 28,
-    color: '#1a1a1a',
-    fontWeight: '600',
+    paddingBottom: 24,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    flex: 1,
+    fontSize: 24,
+    fontFamily: Fonts.bold,
+    color: Colors.white,
     textAlign: 'center',
+    marginTop: 10,
+    marginBottom: 20,
   },
-  headerSpacer: {
-    width: 40,
-  },
-  profileCard: {
+  profileRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
-    marginHorizontal: 12,
-    marginVertical: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#f0f0f0',
+    paddingHorizontal: 24,
   },
   profileAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#2196F3',
+    width: 64,
+    height: 64,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   avatarText: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#ffffff',
+    fontFamily: Fonts.bold,
+    color: Colors.white,
   },
   profileInfo: {
     flex: 1,
     marginLeft: 16,
   },
   profileName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1a1a1a',
+    fontSize: 18,
+    fontFamily: Fonts.bold,
+    color: Colors.white,
   },
   profileGrade: {
-    fontSize: 13,
-    color: '#666',
-    marginTop: 4,
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 2,
   },
-  profileIcon: {
-    fontSize: 24,
-    color: '#ccc',
+  scrollView: {
+    flex: 1,
   },
-  section: {
-    paddingHorizontal: 12,
-    paddingVertical: 12,
+  scrollPadding: {
+    padding: 20,
+    paddingBottom: 40,
   },
   sectionTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#999',
-    marginBottom: 8,
-    paddingHorizontal: 4,
-    letterSpacing: 0.5,
+    fontSize: 14,
+    fontFamily: Fonts.bold,
+    color: Colors.gray500,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 12,
+    marginTop: 24,
+    marginLeft: 4,
   },
   card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#f0f0f0',
-    overflow: 'hidden',
+    backgroundColor: Colors.white,
+    borderRadius: 24,
+    padding: 8,
+    ...Shadows.sm,
   },
   settingItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    padding: 12,
+  },
+  iconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   settingContent: {
     flex: 1,
-  },
-  settingLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  settingIcon: {
-    fontSize: 20,
-    marginRight: 12,
+    marginLeft: 12,
   },
   settingLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1a1a1a',
+    fontSize: 16,
+    fontFamily: Fonts.semibold,
+    color: Colors.gray900,
   },
   settingHint: {
     fontSize: 13,
-    color: '#999',
-    marginTop: 4,
-    marginLeft: 32,
+    color: Colors.gray500,
+    marginTop: 2,
   },
   settingValue: {
-    fontSize: 13,
-    color: '#666',
-    marginTop: 4,
+    fontSize: 14,
+    fontFamily: Fonts.medium,
+    color: Colors.primary,
   },
-  settingArrow: {
-    fontSize: 20,
-    color: '#ccc',
-    marginLeft: 12,
+  versionText: {
+    fontSize: 14,
+    color: Colors.gray400,
   },
   divider: {
     height: 1,
-    backgroundColor: '#f0f0f0',
-    marginHorizontal: 16,
+    backgroundColor: Colors.gray100,
+    marginHorizontal: 12,
   },
-  bottomSection: {
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-  },
-  signOutButton: {
-    backgroundColor: '#f44336',
-    borderRadius: 12,
-    paddingVertical: 16,
+  signOutBtn: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FEF2F2',
+    marginTop: 32,
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#FEE2E2',
   },
   signOutText: {
-    color: '#ffffff',
+    marginLeft: 8,
     fontSize: 16,
-    fontWeight: '700',
+    fontFamily: Fonts.bold,
+    color: '#EF4444',
+  },
+  footer: {
+    marginTop: 32,
+    alignItems: 'center',
+  },
+  footerText: {
+    fontSize: 14,
+    color: Colors.gray400,
+    fontFamily: Fonts.medium,
   },
 });

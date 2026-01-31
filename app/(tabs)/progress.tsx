@@ -9,9 +9,12 @@ import {
   Modal,
   TextInput,
   FlatList,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons, FontAwesome5, Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Colors, Spacing, BorderRadius } from '@/styles/designSystem';
 import {
   calculateStudyStats,
   formatTimeSpent,
@@ -19,6 +22,8 @@ import {
   StudySession,
   StudentNote,
 } from '@/data/studyProgress';
+
+const { width } = Dimensions.get('window');
 
 export default function ProgressScreen() {
   const [sessions, setSessions] = useState<StudySession[]>([
@@ -87,67 +92,76 @@ export default function ProgressScreen() {
     setNotes(notes.filter(n => n.id !== id));
   };
 
-  const chapterNotes = notes.filter(n => n.chapterId === 1); // Can be made dynamic
+  const chapterNotes = notes.filter(n => n.chapterId === 1);
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#2196F3" />
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      <LinearGradient colors={['#6366F1', '#4F46E5'] as any} style={styles.header}>
+        <SafeAreaView edges={['top']}>
+          <Text style={styles.headerSubtitle}>Personal Dashboard</Text>
+          <Text style={styles.headerTitle}>Growth Tracking</Text>
+        </SafeAreaView>
+      </LinearGradient>
 
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>📊 Your Progress</Text>
-      </View>
-
-      {/* Tab Navigation */}
-      <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[styles.tab, selectedTab === 'stats' && styles.tabActive]}
-          onPress={() => setSelectedTab('stats')}
-        >
-          <MaterialIcons name="bar-chart" size={20} color={selectedTab === 'stats' ? '#2196F3' : '#999'} />
-          <Text style={[styles.tabText, selectedTab === 'stats' && styles.tabTextActive]}>Statistics</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, selectedTab === 'notes' && styles.tabActive]}
-          onPress={() => setSelectedTab('notes')}
-        >
-          <MaterialIcons name="note" size={20} color={selectedTab === 'notes' ? '#2196F3' : '#999'} />
-          <Text style={[styles.tabText, selectedTab === 'notes' && styles.tabTextActive]}>Notes</Text>
-        </TouchableOpacity>
+      <View style={styles.tabWrapper}>
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[styles.tab, selectedTab === 'stats' && styles.tabActive]}
+            onPress={() => setSelectedTab('stats')}
+          >
+            <Text style={[styles.tabText, selectedTab === 'stats' && styles.tabTextActive]}>Statistics</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, selectedTab === 'notes' && styles.tabActive]}
+            onPress={() => setSelectedTab('notes')}
+          >
+            <Text style={[styles.tabText, selectedTab === 'notes' && styles.tabTextActive]}>Notes</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {selectedTab === 'stats' ? (
-        <ScrollView style={styles.content} contentContainerStyle={styles.contentPadding}>
-          {/* Motivational Card */}
-          <View style={styles.motivationalCard}>
+        <ScrollView style={styles.content} contentContainerStyle={styles.contentPadding} showsVerticalScrollIndicator={false}>
+          <LinearGradient
+            colors={['#ECFDF5', '#D1FAE5'] as any}
+            style={styles.motivationalCard}
+          >
+            <FontAwesome5 name="lightbulb" size={24} color="#10B981" />
             <Text style={styles.motivationalText}>{motivationalMessage}</Text>
-          </View>
+          </LinearGradient>
 
-          {/* Stats Grid */}
           <View style={styles.statsGrid}>
             <View style={styles.statCard}>
-              <MaterialIcons name="local-fire-department" size={32} color="#FF6B35" />
+              <View style={[styles.iconBox, { backgroundColor: '#FEE2E2' }]}>
+                <MaterialIcons name="local-fire-department" size={24} color="#EF4444" />
+              </View>
               <Text style={styles.statValue}>{stats.streakDays}</Text>
               <Text style={styles.statLabel}>Day Streak</Text>
             </View>
             <View style={styles.statCard}>
-              <MaterialIcons name="schedule" size={32} color="#2196F3" />
+              <View style={[styles.iconBox, { backgroundColor: '#E0E7FF' }]}>
+                <MaterialIcons name="schedule" size={24} color="#4F46E5" />
+              </View>
               <Text style={styles.statValue}>{stats.totalSessions}</Text>
               <Text style={styles.statLabel}>Sessions</Text>
             </View>
             <View style={styles.statCard}>
-              <MaterialIcons name="timer" size={32} color="#4CAF50" />
+              <View style={[styles.iconBox, { backgroundColor: '#D1FAE5' }]}>
+                <MaterialIcons name="timer" size={24} color="#10B981" />
+              </View>
               <Text style={styles.statValue}>{formatTimeSpent(stats.totalTimeSpent)}</Text>
               <Text style={styles.statLabel}>Time Spent</Text>
             </View>
             <View style={styles.statCard}>
-              <MaterialIcons name="school" size={32} color="#FF9800" />
+              <View style={[styles.iconBox, { backgroundColor: '#FEF3C7' }]}>
+                <MaterialIcons name="school" size={24} color="#F59E0B" />
+              </View>
               <Text style={styles.statValue}>{stats.chaptersCompleted}/3</Text>
               <Text style={styles.statLabel}>Chapters</Text>
             </View>
           </View>
 
-          {/* Average Score */}
           {stats.averageScore > 0 && (
             <View style={styles.scoreCard}>
               <View style={styles.scoreHeader}>
@@ -155,26 +169,25 @@ export default function ProgressScreen() {
                 <Text style={styles.scoreValue}>{stats.averageScore}%</Text>
               </View>
               <View style={styles.scoreBar}>
-                <View
-                  style={[
-                    styles.scoreBarFill,
-                    { width: `${stats.averageScore}%` },
-                  ]}
+                <LinearGradient
+                  colors={['#10B981', '#059669'] as any}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={[styles.scoreBarFill, { width: `${stats.averageScore}%` }]}
                 />
               </View>
             </View>
           )}
 
-          {/* Recent Activity */}
           <View style={styles.activityCard}>
             <Text style={styles.activityTitle}>Recent Activity</Text>
             {sessions.slice(0, 5).map((session, index) => (
               <View key={session.id} style={[styles.activityItem, index !== 0 && styles.activityItemBorder]}>
-                <View style={styles.activityIcon}>
+                <View style={[styles.activityIcon, { backgroundColor: session.type === 'quiz' ? '#FEF2F2' : '#F5F3FF' }]}>
                   <MaterialIcons
                     name={session.type === 'quiz' ? 'quiz' : 'layers'}
                     size={20}
-                    color={session.type === 'quiz' ? '#FF6B35' : '#2196F3'}
+                    color={session.type === 'quiz' ? '#EF4444' : '#6366F1'}
                   />
                 </View>
                 <View style={styles.activityContent}>
@@ -182,10 +195,10 @@ export default function ProgressScreen() {
                     {session.type === 'quiz' ? 'Quiz' : 'Flashcards'} - Chapter {session.chapterId}
                   </Text>
                   <Text style={styles.activityTime}>
-                    {new Date(session.startTime).toLocaleDateString()}
+                    {new Date(session.startTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                   </Text>
                 </View>
-                {session.score && (
+                {session.score !== undefined && (
                   <View style={styles.activityScore}>
                     <Text style={styles.activityScoreText}>{session.score}%</Text>
                   </View>
@@ -197,27 +210,35 @@ export default function ProgressScreen() {
       ) : (
         <View style={styles.notesContainer}>
           <FlatList
-            data={chapterNotes}
+            data={notes}
             keyExtractor={item => item.id}
             renderItem={({ item }) => (
               <View style={styles.noteCard}>
                 <View style={styles.noteHeader}>
                   <Text style={styles.noteTitle}>{item.title}</Text>
                   <TouchableOpacity onPress={() => handleDeleteNote(item.id)}>
-                    <MaterialIcons name="delete" size={20} color="#f44336" />
+                    <Ionicons name="trash-outline" size={20} color={Colors.error} />
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.noteContent}>{item.content}</Text>
-                <Text style={styles.noteDate}>
-                  {new Date(item.createdAt).toLocaleDateString()}
-                </Text>
+                <View style={styles.noteFooter}>
+                  <View style={styles.chapterBadge}>
+                    <Text style={styles.chapterBadgeText}>Chapter {item.chapterId}</Text>
+                  </View>
+                  <Text style={styles.noteDate}>
+                    {new Date(item.createdAt).toLocaleDateString()}
+                  </Text>
+                </View>
               </View>
             )}
             contentContainerStyle={styles.notesList}
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
-                <MaterialIcons name="note-add" size={48} color="#ccc" />
-                <Text style={styles.emptyText}>No notes yet. Create one!</Text>
+                <View style={styles.emptyIconCircle}>
+                  <Ionicons name="document-text-outline" size={48} color={Colors.gray300} />
+                </View>
+                <Text style={styles.emptyText}>No notes recorded yet</Text>
+                <Text style={styles.emptySubtext}>Your quick study notes will appear here</Text>
               </View>
             }
           />
@@ -225,238 +246,257 @@ export default function ProgressScreen() {
             style={styles.addNoteButton}
             onPress={() => setShowNoteModal(true)}
           >
-            <MaterialIcons name="add" size={24} color="#fff" />
-            <Text style={styles.addNoteButtonText}>Add Note</Text>
+            <LinearGradient
+              colors={['#6366F1', '#4F46E5'] as any}
+              style={styles.addNoteGradient}
+            >
+              <Ionicons name="add" size={24} color={Colors.white} />
+              <Text style={styles.addNoteButtonText}>Create New Note</Text>
+            </LinearGradient>
           </TouchableOpacity>
         </View>
       )}
 
-      {/* Add Note Modal */}
       <Modal
         visible={showNoteModal}
         transparent
         animationType="slide"
         onRequestClose={() => setShowNoteModal(false)}
       >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setShowNoteModal(false)}>
-              <Text style={styles.modalCloseText}>✕</Text>
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>Add Note</Text>
-            <TouchableOpacity onPress={handleAddNote}>
-              <Text style={styles.modalSaveText}>Save</Text>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>New Note</Text>
+              <TouchableOpacity onPress={() => setShowNoteModal(false)}>
+                <Ionicons name="close" size={24} color={Colors.gray900} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
+              <Text style={styles.inputLabel}>Title</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="What's this about?"
+                value={newNote.title}
+                onChangeText={text => setNewNote({ ...newNote, title: text })}
+                placeholderTextColor={Colors.gray400}
+              />
+
+              <Text style={styles.inputLabel}>Note Details</Text>
+              <TextInput
+                style={[styles.input, styles.contentInput]}
+                placeholder="Jot down your key points..."
+                value={newNote.content}
+                onChangeText={text => setNewNote({ ...newNote, content: text })}
+                multiline
+                placeholderTextColor={Colors.gray400}
+              />
+
+              <Text style={styles.inputLabel}>Select Chapter</Text>
+              <View style={styles.chapterSelector}>
+                {[1, 2, 3].map(ch => (
+                  <TouchableOpacity
+                    key={ch}
+                    style={[
+                      styles.chapterOption,
+                      newNote.chapterId === ch && styles.chapterOptionActive,
+                    ]}
+                    onPress={() => setNewNote({ ...newNote, chapterId: ch })}
+                  >
+                    <Text
+                      style={[
+                        styles.chapterOptionText,
+                        newNote.chapterId === ch && styles.chapterOptionTextActive,
+                      ]}
+                    >
+                      CH {ch}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity style={styles.saveButton} onPress={handleAddNote}>
+              <LinearGradient
+                colors={['#6366F1', '#4F46E5'] as any}
+                style={styles.saveGradient}
+              >
+                <Text style={styles.saveButtonText}>Save Note</Text>
+              </LinearGradient>
             </TouchableOpacity>
           </View>
-
-          <ScrollView style={styles.modalContent}>
-            <Text style={styles.inputLabel}>Title</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Note title"
-              value={newNote.title}
-              onChangeText={text => setNewNote({ ...newNote, title: text })}
-              placeholderTextColor="#999"
-            />
-
-            <Text style={styles.inputLabel}>Content</Text>
-            <TextInput
-              style={[styles.input, styles.contentInput]}
-              placeholder="Write your note here..."
-              value={newNote.content}
-              onChangeText={text => setNewNote({ ...newNote, content: text })}
-              multiline
-              placeholderTextColor="#999"
-            />
-
-            <Text style={styles.inputLabel}>Chapter</Text>
-            <View style={styles.chapterSelector}>
-              {[1, 2, 3].map(ch => (
-                <TouchableOpacity
-                  key={ch}
-                  style={[
-                    styles.chapterOption,
-                    newNote.chapterId === ch && styles.chapterOptionActive,
-                  ]}
-                  onPress={() => setNewNote({ ...newNote, chapterId: ch })}
-                >
-                  <Text
-                    style={[
-                      styles.chapterOptionText,
-                      newNote.chapterId === ch && styles.chapterOptionTextActive,
-                    ]}
-                  >
-                    Chapter {ch}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
-        </SafeAreaView>
+        </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#F8FAFC',
   },
   header: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#2196F3',
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: 40,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '600',
+    marginTop: 10,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#ffffff',
+    fontSize: 28,
+    fontWeight: '800',
+    color: Colors.white,
+    marginTop: 5,
+  },
+  tabWrapper: {
+    marginTop: -25,
+    paddingHorizontal: Spacing.xl,
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#ffffff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e8e8e8',
+    backgroundColor: Colors.white,
+    borderRadius: 15,
+    padding: 6,
+    ...Colors.cardShadow as any,
   },
   tab: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
     paddingVertical: 12,
-    borderBottomWidth: 3,
-    borderBottomColor: 'transparent',
+    alignItems: 'center',
+    borderRadius: 10,
   },
   tabActive: {
-    borderBottomColor: '#2196F3',
+    backgroundColor: '#EEF2FF',
   },
   tabText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#999',
+    fontWeight: '700',
+    color: Colors.gray400,
   },
   tabTextActive: {
-    color: '#2196F3',
+    color: Colors.primary,
   },
   content: {
     flex: 1,
   },
   contentPadding: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.xl,
+    paddingBottom: 40,
   },
   motivationalCard: {
-    backgroundColor: '#E3F2FD',
-    borderLeftWidth: 4,
-    borderLeftColor: '#2196F3',
-    borderRadius: 8,
-    padding: 16,
-    marginBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.lg,
+    borderRadius: 20,
+    marginBottom: Spacing.xl,
+    gap: 15,
   },
   motivationalText: {
-    fontSize: 16,
+    flex: 1,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#1565C0',
+    color: '#065F46',
+    lineHeight: 22,
   },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
-    marginBottom: 20,
+    marginBottom: Spacing.xl,
   },
   statCard: {
-    width: '48%',
-    backgroundColor: '#ffffff',
+    width: (width - 60) / 2,
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    padding: Spacing.lg,
+    alignItems: 'flex-start',
+    ...Colors.cardShadow as any,
+  },
+  iconBox: {
+    width: 44,
+    height: 44,
     borderRadius: 12,
-    padding: 16,
+    justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    marginBottom: 12,
   },
   statValue: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    marginTop: 8,
+    fontSize: 22,
+    fontWeight: '800',
+    color: Colors.gray900,
   },
   statLabel: {
-    fontSize: 12,
-    color: '#666',
+    fontSize: 13,
+    color: Colors.gray500,
     marginTop: 4,
+    fontWeight: '600',
   },
   scoreCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    padding: Spacing.lg,
+    marginBottom: Spacing.xl,
+    ...Colors.cardShadow as any,
   },
   scoreHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 15,
   },
   scoreTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1a1a1a',
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.gray900,
   },
   scoreValue: {
     fontSize: 20,
-    fontWeight: '700',
-    color: '#2196F3',
+    fontWeight: '800',
+    color: '#10B981',
   },
   scoreBar: {
-    height: 8,
-    backgroundColor: '#e8e8e8',
-    borderRadius: 4,
+    height: 10,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 5,
     overflow: 'hidden',
   },
   scoreBarFill: {
     height: '100%',
-    backgroundColor: '#2196F3',
+    borderRadius: 5,
   },
   activityCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    padding: Spacing.lg,
+    ...Colors.cardShadow as any,
   },
   activityTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 12,
+    color: Colors.gray900,
+    marginBottom: 15,
   },
   activityItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
+    gap: 15,
+    paddingVertical: 15,
   },
   activityItemBorder: {
     borderTopWidth: 1,
-    borderTopColor: '#e8e8e8',
+    borderTopColor: '#F1F5F9',
   },
   activityIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f5f5f5',
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -464,169 +504,215 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   activityType: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1a1a1a',
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.gray900,
   },
   activityTime: {
-    fontSize: 12,
-    color: '#999',
+    fontSize: 13,
+    color: Colors.gray500,
     marginTop: 2,
   },
   activityScore: {
-    backgroundColor: '#E3F2FD',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
   },
   activityScoreText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#2196F3',
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#10B981',
   },
   notesContainer: {
     flex: 1,
   },
   notesList: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    padding: Spacing.xl,
+    paddingBottom: 100,
   },
   noteCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    ...Colors.cardShadow as any,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.primary,
   },
   noteHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   noteTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '700',
-    color: '#1a1a1a',
+    color: Colors.gray900,
     flex: 1,
   },
   noteContent: {
-    fontSize: 13,
-    color: '#666',
-    lineHeight: 20,
-    marginBottom: 8,
+    fontSize: 14,
+    color: Colors.gray600,
+    lineHeight: 22,
+    marginBottom: 15,
+  },
+  noteFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  chapterBadge: {
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  chapterBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.primary,
+    textTransform: 'uppercase',
   },
   noteDate: {
-    fontSize: 11,
-    color: '#999',
+    fontSize: 12,
+    color: Colors.gray400,
+    fontWeight: '500',
   },
   emptyContainer: {
-    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 100,
+  },
+  emptyIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: Colors.gray100,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 60,
+    marginBottom: 20,
   },
   emptyText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.gray900,
+  },
+  emptySubtext: {
     fontSize: 14,
-    color: '#999',
-    marginTop: 12,
+    color: Colors.gray500,
+    marginTop: 8,
   },
   addNoteButton: {
+    position: 'absolute',
+    bottom: 25,
+    left: 20,
+    right: 20,
+    ...Colors.cardShadow as any,
+  },
+  addNoteGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#2196F3',
-    marginHorizontal: 16,
-    marginVertical: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
+    height: 56,
+    borderRadius: 28,
+    gap: 10,
   },
   addNoteButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600',
+    color: Colors.white,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
   },
   modalContainer: {
-    flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingTop: 20,
+    paddingBottom: 40,
+    maxHeight: '90%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#2196F3',
-  },
-  modalCloseText: {
-    fontSize: 24,
-    color: '#ffffff',
-    fontWeight: '600',
+    paddingHorizontal: Spacing.xl,
+    marginBottom: 25,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  modalSaveText: {
-    fontSize: 14,
-    color: '#ffffff',
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: '800',
+    color: Colors.gray900,
   },
   modalContent: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingHorizontal: Spacing.xl,
   },
   inputLabel: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    marginBottom: 8,
+    fontWeight: '700',
+    color: Colors.gray900,
+    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   input: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 15,
+    padding: 15,
+    fontSize: 16,
+    color: Colors.gray900,
+    marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#e8e8e8',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#1a1a1a',
-    marginBottom: 16,
+    borderColor: '#E2E8F0',
   },
   contentInput: {
-    minHeight: 120,
+    minHeight: 150,
     textAlignVertical: 'top',
   },
   chapterSelector: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
+    gap: 10,
+    marginBottom: 30,
   },
   chapterOption: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
     borderWidth: 2,
-    borderColor: '#e8e8e8',
+    borderColor: '#F1F5F9',
     alignItems: 'center',
+    backgroundColor: '#F8FAFC',
   },
   chapterOptionActive: {
-    borderColor: '#2196F3',
-    backgroundColor: '#E3F2FD',
+    borderColor: Colors.primary,
+    backgroundColor: '#EEF2FF',
   },
   chapterOptionText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#666',
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.gray500,
   },
   chapterOptionTextActive: {
-    color: '#2196F3',
+    color: Colors.primary,
+  },
+  saveButton: {
+    paddingHorizontal: Spacing.xl,
+    marginTop: 10,
+  },
+  saveGradient: {
+    height: 56,
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  saveButtonText: {
+    color: Colors.white,
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

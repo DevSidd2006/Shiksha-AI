@@ -25,12 +25,12 @@ export interface TutorResponse {
   answer: string;
   timestamp: string;
   model?: string;
-  source?: 'ollama' | 'gemini';
+  source?: 'ollama';
 }
 
 export async function sendQuestion(
   question: string,
-  studentGrade: string = 'Class 5-9'
+  studentGrade: string = 'Class 9'
 ): Promise<TutorResponse> {
   try {
     const response = await fetch(`${API_URL}/tutor`, {
@@ -40,7 +40,7 @@ export async function sendQuestion(
       },
       body: JSON.stringify({ 
         question,
-        studentGrade, // Send student context to backend
+        studentGrade,
       }),
     });
 
@@ -53,5 +53,48 @@ export async function sendQuestion(
   } catch (error) {
     console.error('API Error:', error);
     throw new Error('Failed to get response from tutor. Please check your connection.');
+  }
+}
+
+export async function translateText(text: string, targetLang: string): Promise<string> {
+  try {
+    const response = await fetch(`${API_URL}/translate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ text, targetLang }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.translation;
+  } catch (error) {
+    console.error('Translation API Error:', error);
+    return text;
+  }
+}
+
+export async function processDocument(
+  text: string, 
+  task: 'correct' | 'summarize' | 'qa' | 'extract' = 'correct',
+  customPrompt?: string
+): Promise<string> {
+  try {
+    const response = await fetch(`${API_URL}/process-document`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, task, customPrompt }),
+    });
+
+    if (!response.ok) throw new Error('Failed to process document');
+    const data = await response.json();
+    return data.result;
+  } catch (error) {
+    console.error('Document Processing Error:', error);
+    return text; // Fallback to raw text
   }
 }

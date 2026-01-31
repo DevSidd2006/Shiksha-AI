@@ -12,7 +12,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CLASS_9_SCIENCE, getCardsByChapter, Flashcard, Chapter } from '@/data/class9Science';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons, FontAwesome5, Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Colors, Spacing, BorderRadius } from '@/styles/designSystem';
 
 const { width } = Dimensions.get('window');
 
@@ -34,7 +36,6 @@ export default function FlashcardsScreen() {
   });
 
   const [flipAnim] = useState(new Animated.Value(0));
-  const [progress, setProgress] = useState(0);
 
   const currentCards = state.selectedChapter
     ? getCardsByChapter(state.selectedChapter)
@@ -42,16 +43,11 @@ export default function FlashcardsScreen() {
 
   const currentCard = currentCards[state.currentCardIndex];
 
-  useEffect(() => {
-    if (currentCards.length > 0) {
-      setProgress(((state.currentCardIndex + 1) / currentCards.length) * 100);
-    }
-  }, [state.currentCardIndex, currentCards.length]);
-
   const handleFlip = () => {
-    Animated.timing(flipAnim, {
-      toValue: state.isFlipped ? 0 : 1,
-      duration: 300,
+    Animated.spring(flipAnim, {
+      toValue: state.isFlipped ? 0 : 180,
+      friction: 8,
+      tension: 10,
       useNativeDriver: true,
     }).start();
 
@@ -70,7 +66,9 @@ export default function FlashcardsScreen() {
       }));
       flipAnim.setValue(0);
     } else {
-      Alert.alert('Chapter Complete!', 'You have reviewed all cards in this chapter.');
+      Alert.alert('Chapter Complete!', 'You have reviewed all cards in this chapter.', [
+        { text: 'Back to Chapters', onPress: () => setState(prev => ({ ...prev, selectedChapter: null })) }
+      ]);
     }
   };
 
@@ -89,10 +87,7 @@ export default function FlashcardsScreen() {
     setState(prev => {
       const newMastered = new Set(prev.masteredCards);
       newMastered.add(currentCard.id);
-      return {
-        ...prev,
-        masteredCards: newMastered,
-      };
+      return { ...prev, masteredCards: newMastered };
     });
     handleNext();
   };
@@ -101,198 +96,121 @@ export default function FlashcardsScreen() {
     setState(prev => {
       const newReview = new Set(prev.reviewCards);
       newReview.add(currentCard.id);
-      return {
-        ...prev,
-        reviewCards: newReview,
-      };
+      return { ...prev, reviewCards: newReview };
     });
     handleNext();
   };
 
-  const handleSelectChapter = (chapterId: number) => {
-    setState({
-      currentCardIndex: 0,
-      isFlipped: false,
-      selectedChapter: chapterId,
-      masteredCards: new Set(),
-      reviewCards: new Set(),
-    });
-    flipAnim.setValue(0);
-  };
+  const frontInterpolate = flipAnim.interpolate({
+    inputRange: [0, 180],
+    outputRange: ['0deg', '180deg'],
+  });
 
-  const handleBackToChapters = () => {
-    setState(prev => ({
-      ...prev,
-      selectedChapter: null,
-      currentCardIndex: 0,
-      isFlipped: false,
-    }));
-    flipAnim.setValue(0);
-  };
+  const backInterpolate = flipAnim.interpolate({
+    inputRange: [0, 180],
+    outputRange: ['180deg', '360deg'],
+  });
 
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case 'easy':
-        return '#4CAF50';
-      case 'medium':
-        return '#FF9800';
-      case 'hard':
-        return '#f44336';
-      default:
-        return '#2196F3';
-    }
-  };
+  const frontOpacity = flipAnim.interpolate({
+    inputRange: [89, 90],
+    outputRange: [1, 0],
+  });
+
+  const backOpacity = flipAnim.interpolate({
+    inputRange: [89, 90],
+    outputRange: [0, 1],
+  });
 
   if (!state.selectedChapter) {
     return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#2196F3" />
-
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>📚 Class 9 Science</Text>
-          <Text style={styles.headerSubtitle}>Interactive Flashcards</Text>
-        </View>
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" />
+        <LinearGradient
+          colors={['#6366F1', '#4F46E5'] as any}
+          style={styles.mainHeader}
+        >
+          <SafeAreaView edges={['top']}>
+            <Text style={styles.headerSubtitle}>Master Concepts</Text>
+            <Text style={styles.headerTitle}>Flashcards</Text>
+          </SafeAreaView>
+        </LinearGradient>
 
         <FlatList
           data={CLASS_9_SCIENCE}
-          keyExtractor={item => item.id.toString()}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={styles.listContent}
           renderItem={({ item }) => (
             <TouchableOpacity
               style={styles.chapterCard}
-              onPress={() => handleSelectChapter(item.id)}
+              onPress={() => setState(prev => ({ ...prev, selectedChapter: item.id, currentCardIndex: 0 }))}
             >
-              <View style={styles.chapterContent}>
-                <Text style={styles.chapterNumber}>Chapter {item.id}</Text>
+              <LinearGradient
+                colors={['#EEF2FF', '#E0E7FF'] as any}
+                style={styles.chapterGradient}
+              >
+                <FontAwesome5 name="layer-group" size={20} color={Colors.primary} />
+              </LinearGradient>
+              <View style={styles.chapterInfo}>
                 <Text style={styles.chapterTitle}>{item.title}</Text>
-                <Text style={styles.chapterDescription}>{item.description}</Text>
-                <View style={styles.cardCount}>
-                  <MaterialIcons name="layers" size={16} color="#2196F3" />
-                  <Text style={styles.cardCountText}>{item.cards.length} Cards</Text>
-                </View>
+                <Text style={styles.chapterSubtitle}>{item.cards.length} Flashcards</Text>
               </View>
-              <MaterialIcons name="chevron-right" size={24} color="#2196F3" />
+              <Ionicons name="chevron-forward" size={24} color={Colors.gray400} />
             </TouchableOpacity>
           )}
-          contentContainerStyle={styles.chapterList}
-          scrollEnabled
         />
-      </SafeAreaView>
+      </View>
     );
   }
 
-  const chapter = CLASS_9_SCIENCE.find(c => c.id === state.selectedChapter);
-
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#2196F3" />
-
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={handleBackToChapters} style={styles.backButton}>
-          <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
+      <View style={styles.quizHeader}>
+        <TouchableOpacity onPress={() => setState(prev => ({ ...prev, selectedChapter: null }))}>
+          <Ionicons name="close" size={28} color={Colors.gray900} />
         </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>{chapter?.title}</Text>
-          <Text style={styles.headerProgress}>
-            Card {state.currentCardIndex + 1} of {currentCards.length}
-          </Text>
+        <View style={styles.progressTracker}>
+          <Text style={styles.progressText}>Card {state.currentCardIndex + 1}/{currentCards.length}</Text>
         </View>
+        <View style={{ width: 28 }} />
       </View>
 
-      {/* Progress Bar */}
-      <View style={styles.progressContainer}>
-        <View style={[styles.progressBar, { width: `${progress}%` }]} />
-      </View>
-
-      {/* Flashcard */}
-      <View style={styles.cardContainer}>
-        <TouchableOpacity
-          style={styles.card}
-          onPress={handleFlip}
-          activeOpacity={0.9}
-        >
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardLabel}>
-              {state.isFlipped ? 'ANSWER' : 'QUESTION'}
-            </Text>
-            <View
-              style={[
-                styles.difficultyBadge,
-                { backgroundColor: getDifficultyColor(currentCard?.difficulty) },
-              ]}
-            >
-              <Text style={styles.difficultyText}>
-                {currentCard?.difficulty.toUpperCase()}
-              </Text>
+      <View style={styles.cardWrapper}>
+        <TouchableOpacity activeOpacity={1} onPress={handleFlip} style={styles.cardContainer}>
+          <Animated.View style={[styles.card, styles.cardFront, { transform: [{ rotateY: frontInterpolate }], opacity: frontOpacity }]}>
+            <Text style={styles.cardTag}>Question</Text>
+            <Text style={styles.cardText}>{currentCard?.question || currentCard?.front}</Text>
+            <View style={styles.flipHint}>
+              <Ionicons name="refresh" size={16} color={Colors.gray400} />
+              <Text style={styles.flipHintText}>Tap to see answer</Text>
             </View>
-          </View>
+          </Animated.View>
 
-          <View style={styles.cardContent}>
-            <Text style={styles.cardText}>
-              {state.isFlipped ? currentCard?.answer : currentCard?.question}
-            </Text>
-          </View>
-
-          <View style={styles.cardFooter}>
-            <MaterialIcons name="touch-app" size={20} color="#999" />
-            <Text style={styles.tapText}>Tap to flip</Text>
-          </View>
+          <Animated.View style={[styles.card, styles.cardBack, { transform: [{ rotateY: backInterpolate }], opacity: backOpacity }]}>
+            <Text style={styles.cardTag}>Answer</Text>
+            <Text style={styles.cardTextBack}>{currentCard?.answer || currentCard?.back}</Text>
+            <View style={styles.flipHint}>
+              <Ionicons name="refresh" size={16} color={Colors.gray400} />
+              <Text style={styles.flipHintText}>Tap to see question</Text>
+            </View>
+          </Animated.View>
         </TouchableOpacity>
       </View>
 
-      {/* Action Buttons */}
-      <View style={styles.actionContainer}>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.reviewButton]}
-          onPress={handleReview}
-        >
-          <MaterialIcons name="refresh" size={20} color="#fff" />
-          <Text style={styles.actionButtonText}>Review</Text>
+      <View style={styles.controls}>
+        <TouchableOpacity style={styles.controlButton} onPress={handleReview} >
+          <Ionicons name="refresh" size={24} color={Colors.secondary} />
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.actionButton, styles.masteredButton]}
-          onPress={handleMastered}
-        >
-          <MaterialIcons name="check-circle" size={20} color="#fff" />
-          <Text style={styles.actionButtonText}>Mastered</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Navigation */}
-      <View style={styles.navigationContainer}>
-        <TouchableOpacity
-          style={[styles.navButton, state.currentCardIndex === 0 && styles.navButtonDisabled]}
-          onPress={handlePrevious}
-          disabled={state.currentCardIndex === 0}
-        >
-          <MaterialIcons name="arrow-back" size={20} color="#2196F3" />
-          <Text style={styles.navButtonText}>Previous</Text>
+        <TouchableOpacity style={[styles.mainButton, { backgroundColor: Colors.secondary }]} onPress={handleNext}>
+          <Text style={styles.mainButtonText}>
+            {state.currentCardIndex === currentCards.length - 1 ? 'Finish' : 'Next Card'}
+          </Text>
+          <Ionicons name="arrow-forward" size={20} color={Colors.white} />
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[
-            styles.navButton,
-            state.currentCardIndex === currentCards.length - 1 && styles.navButtonDisabled,
-          ]}
-          onPress={handleNext}
-          disabled={state.currentCardIndex === currentCards.length - 1}
-        >
-          <Text style={styles.navButtonText}>Next</Text>
-          <MaterialIcons name="arrow-forward" size={20} color="#2196F3" />
+        <TouchableOpacity style={styles.controlButton} onPress={handleMastered} >
+          <Ionicons name="checkmark" size={24} color="#10B981" />
         </TouchableOpacity>
-      </View>
-
-      {/* Stats */}
-      <View style={styles.statsContainer}>
-        <View style={styles.statItem}>
-          <MaterialIcons name="check" size={16} color="#4CAF50" />
-          <Text style={styles.statText}>Mastered: {state.masteredCards.size}</Text>
-        </View>
-        <View style={styles.statItem}>
-          <MaterialIcons name="refresh" size={16} color="#FF9800" />
-          <Text style={styles.statText}>Review: {state.reviewCards.size}</Text>
-        </View>
       </View>
     </SafeAreaView>
   );
@@ -301,231 +219,170 @@ export default function FlashcardsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#F8FAFC',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#2196F3',
-  },
-  backButton: {
-    padding: 8,
-    marginRight: 12,
-  },
-  headerContent: {
-    flex: 1,
+  mainHeader: {
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: 30,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#ffffff',
+    fontSize: 28,
+    fontWeight: '800',
+    color: Colors.white,
+    marginTop: 5,
   },
   headerSubtitle: {
     fontSize: 14,
-    color: '#ffffff',
-    marginTop: 4,
-  },
-  headerProgress: {
-    fontSize: 12,
     color: 'rgba(255, 255, 255, 0.8)',
-    marginTop: 2,
+    fontWeight: '600',
+    marginTop: 10,
   },
-  progressContainer: {
-    height: 4,
-    backgroundColor: '#e0e0e0',
-  },
-  progressBar: {
-    height: 4,
-    backgroundColor: '#4CAF50',
-  },
-  chapterList: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+  listContent: {
+    padding: Spacing.lg,
   },
   chapterCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: '#2196F3',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,
+    backgroundColor: Colors.white,
+    padding: Spacing.lg,
+    borderRadius: 20,
+    marginBottom: Spacing.md,
+    ...Colors.cardShadow as any,
   },
-  chapterContent: {
+  chapterGradient: {
+    width: 50,
+    height: 50,
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  chapterInfo: {
     flex: 1,
   },
-  chapterNumber: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#2196F3',
-    marginBottom: 4,
-  },
   chapterTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 4,
+    color: Colors.gray900,
   },
-  chapterDescription: {
+  chapterSubtitle: {
     fontSize: 13,
-    color: '#666',
-    marginBottom: 8,
+    color: Colors.gray500,
+    marginTop: 2,
   },
-  cardCount: {
+  quizHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 4,
+    padding: Spacing.lg,
   },
-  cardCountText: {
-    fontSize: 12,
-    color: '#2196F3',
-    fontWeight: '600',
+  progressTracker: {
+    backgroundColor: Colors.gray100,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
   },
-  cardContainer: {
+  progressText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.gray700,
+  },
+  cardWrapper: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 20,
+    padding: Spacing.xl,
+  },
+  cardContainer: {
+    width: width - 60,
+    height: 400,
   },
   card: {
     width: '100%',
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 24,
-    minHeight: 300,
-    justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    height: '100%',
+    backgroundColor: Colors.white,
+    borderRadius: 30,
+    padding: 30,
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    position: 'absolute',
+    backfaceVisibility: 'hidden',
+    ...Colors.cardShadow as any,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
-  cardLabel: {
+  cardFront: {
+    zIndex: 2,
+  },
+  cardBack: {
+    zIndex: 1,
+  },
+  cardTag: {
+    position: 'absolute',
+    top: 25,
+    left: 25,
     fontSize: 12,
-    fontWeight: '700',
-    color: '#2196F3',
+    fontWeight: '800',
+    color: Colors.primary,
+    textTransform: 'uppercase',
     letterSpacing: 1,
   },
-  difficultyBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  difficultyText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
-  cardContent: {
-    flex: 1,
-    justifyContent: 'center',
-  },
   cardText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: Colors.gray900,
+    textAlign: 'center',
+    lineHeight: 34,
+  },
+  cardTextBack: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1a1a1a',
+    color: Colors.gray700,
+    textAlign: 'center',
     lineHeight: 28,
   },
-  cardFooter: {
+  flipHint: {
+    position: 'absolute',
+    bottom: 25,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#e8e8e8',
+    gap: 6,
   },
-  tapText: {
+  flipHintText: {
     fontSize: 12,
-    color: '#999',
-    fontStyle: 'italic',
+    color: Colors.gray400,
+    fontWeight: '600',
   },
-  actionContainer: {
+  controls: {
     flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  actionButton: {
-    flex: 1,
-    flexDirection: 'row',
+    padding: Spacing.xl,
     alignItems: 'center',
+    gap: 15,
+  },
+  controlButton: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: Colors.white,
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  reviewButton: {
-    backgroundColor: '#FF9800',
-  },
-  masteredButton: {
-    backgroundColor: '#4CAF50',
-  },
-  actionButtonText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  navigationContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  navButton: {
-    flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
+    ...Colors.cardShadow as any,
+  },
+  mainButton: {
+    flex: 1,
+    height: 60,
+    borderRadius: 30,
+    flexDirection: 'row',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#2196F3',
-  },
-  navButtonDisabled: {
-    opacity: 0.5,
-  },
-  navButtonText: {
-    color: '#2196F3',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    gap: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#ffffff',
-    borderTopWidth: 1,
-    borderTopColor: '#e8e8e8',
-  },
-  statItem: {
-    flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingVertical: 8,
+    gap: 10,
+    ...Colors.cardShadow as any,
   },
-  statText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#333',
+  mainButtonText: {
+    color: Colors.white,
+    fontSize: 18,
+    fontWeight: '700',
   },
 });

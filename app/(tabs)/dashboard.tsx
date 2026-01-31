@@ -8,12 +8,16 @@ import {
   RefreshControl,
   ActivityIndicator,
   Modal,
+  Platform,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons, FontAwesome5, Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { DashboardService, DashboardStats } from '@/services/dashboardService';
 import { AchievementService } from '@/services/achievementService';
 import { getProfile } from '@/storage/profileStore';
+import { Colors, Spacing, BorderRadius, Fonts, Shadows } from '@/styles/designSystem';
 
 // Import data with fallback
 let CLASS_9_SCIENCE: any[] = [];
@@ -58,10 +62,7 @@ export default function DashboardScreen() {
     try {
       const summaries: ChapterSummary[] = [];
       
-      if (!CLASS_9_SCIENCE || CLASS_9_SCIENCE.length === 0) {
-        console.warn('Flashcard data not available');
-        return;
-      }
+      if (!CLASS_9_SCIENCE || CLASS_9_SCIENCE.length === 0) return;
 
       CLASS_9_SCIENCE.forEach((chapter: any) => {
         if (!chapter || !chapter.id) return;
@@ -94,148 +95,215 @@ export default function DashboardScreen() {
 
   const loadDashboardData = useCallback(async () => {
     try {
-      const userId = 'student_default';
-
-      try {
-        const userProfile = await getProfile();
-        setProfile(userProfile);
-      } catch (e) {
-        console.log('Profile load optional');
-      }
-
-      const newAchievements = await AchievementService.checkAndUnlockAchievements(userId);
-      if (newAchievements.length > 0) {
-        console.log('🏆 New achievements unlocked:', newAchievements);
-      }
-
-      const dashboardStats = await DashboardService.getDashboardStats(userId);
+      setLoading(true);
+      const userProfile = await getProfile();
+      setProfile(userProfile);
+      
+      const dashboardStats = await DashboardService.getDashboardStats('student_default');
       setStats(dashboardStats);
-      setLoading(false);
     } catch (error) {
-      console.error('Error loading dashboard:', error);
+      console.error('Error loading dashboard data:', error);
+    } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
-  const onRefresh = useCallback(async () => {
+  const onRefresh = () => {
     setRefreshing(true);
-    await loadDashboardData();
-    setRefreshing(false);
-  }, [loadDashboardData]);
+    loadDashboardData();
+  };
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <ActivityIndicator size="large" color="#2196F3" />
-      </SafeAreaView>
-    );
-  }
-
-  if (!stats) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <Text style={styles.errorText}>Unable to load dashboard</Text>
-      </SafeAreaView>
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <StatusBar barStyle="light-content" />
       <ScrollView
         style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
-        scrollEventThrottle={16}
-        removeClippedSubviews={true}
       >
-        {/* Header with Greeting */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>Good Morning,</Text>
-            <Text style={styles.studentName}>{profile?.name || 'Student'}!</Text>
+        <LinearGradient
+          colors={['#6366F1', '#4F46E5']}
+          style={styles.header}
+        >
+          <View style={styles.headerTop}>
+            <View>
+              <Text style={styles.greeting}>Hello,</Text>
+              <Text style={styles.studentName}>{profile?.name || 'Academic Star'}</Text>
+            </View>
+            <View style={styles.headerIcons}>
+              <TouchableOpacity style={styles.iconButton}>
+                <Ionicons name="notifications-outline" size={24} color={Colors.white} />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.iconButton}>
+                <Ionicons name="person-outline" size={24} color={Colors.white} />
+              </TouchableOpacity>
+            </View>
           </View>
-          <TouchableOpacity style={styles.notificationBell}>
-            <Text style={styles.bellIcon}>🔔</Text>
+
+          <View style={styles.statsBar}>
+            <View style={styles.statBox}>
+              <MaterialIcons name="local-fire-department" size={22} color="#FFD700" />
+              <Text style={styles.statValue}>{stats?.streak || 0}</Text>
+              <Text style={styles.statDesc}>Day Streak</Text>
+            </View>
+            <View style={[styles.statBox, styles.statDivider]}>
+              <MaterialIcons name="stars" size={22} color="#FFD700" />
+              <Text style={styles.statValue}>{stats?.totalPoints || 0}</Text>
+              <Text style={styles.statDesc}>Total XP</Text>
+            </View>
+            <View style={styles.statBox}>
+              <MaterialIcons name="emoji-events" size={22} color="#FFD700" />
+              <Text style={styles.statValue}>#{stats?.rank || '12'}</Text>
+              <Text style={styles.statDesc}>Leaderboard</Text>
+            </View>
+          </View>
+        </LinearGradient>
+
+        <View style={styles.searchWrapper}>
+          <TouchableOpacity style={styles.searchContainer}>
+            <Ionicons name="search" size={20} color={Colors.gray400} />
+            <Text style={styles.searchText}>Search notes, quizzes or chapters</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <Text style={styles.searchIcon}>🔍</Text>
-          <Text style={styles.searchText}>Search chapters, books, or questions...</Text>
+        <View style={styles.quickActions}>
+          <TouchableOpacity style={styles.actionItem}>
+            <View style={[styles.actionIcon, { backgroundColor: '#EEF2FF' }]}>
+              <Ionicons name="book" size={26} color="#6366F1" />
+            </View>
+            <Text style={styles.actionLabel}>Library</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionItem}>
+            <View style={[styles.actionIcon, { backgroundColor: '#F0FDF4' }]}>
+              <Ionicons name="stats-chart" size={26} color="#10B981" />
+            </View>
+            <Text style={styles.actionLabel}>Progress</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionItem}>
+            <View style={[styles.actionIcon, { backgroundColor: '#FFF7ED' }]}>
+              <Ionicons name="chatbubbles" size={26} color="#F59E0B" />
+            </View>
+            <Text style={styles.actionLabel}>Ask AI</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionItem}>
+            <View style={[styles.actionIcon, { backgroundColor: '#FEF2F2' }]}>
+              <Ionicons name="flash" size={26} color="#EF4444" />
+            </View>
+            <Text style={styles.actionLabel}>Mistakes</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Quick Access Buttons */}
-        <View style={styles.quickAccessContainer}>
-          <TouchableOpacity style={styles.quickAccessBtn}>
-            <Text style={styles.quickAccessIcon}>📖</Text>
-            <Text style={styles.quickAccessLabel}>NCERT</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.quickAccessBtn}>
-            <Text style={styles.quickAccessIcon}>📋</Text>
-            <Text style={styles.quickAccessLabel}>Syllabus</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.quickAccessBtn}>
-            <Text style={styles.quickAccessIcon}>⬇️</Text>
-            <Text style={styles.quickAccessLabel}>Downloads</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.quickAccessBtn}>
-            <Text style={styles.quickAccessIcon}>📝</Text>
-            <Text style={styles.quickAccessLabel}>Tests</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Continue Reading */}
-        <View style={styles.sectionContainer}>
+        <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Continue Reading</Text>
-            <TouchableOpacity>
-              <Text style={styles.viewAll}>View All</Text>
+            <Text style={styles.sectionTitle}>Continue Learning</Text>
+            <TouchableOpacity><Text style={styles.viewAll}>Resume</Text></TouchableOpacity>
+          </View>
+          <TouchableOpacity style={styles.progressCard}>
+            <View style={styles.progressIconBg}>
+              <FontAwesome5 name="atom" size={28} color="#6366F1" />
+            </View>
+            <View style={styles.progressInfo}>
+              <Text style={styles.progressCategory}>SCIENCE • CHAPTER 3</Text>
+              <Text style={styles.progressTitle}>Atoms and Molecules</Text>
+              <View style={styles.progressBarContainer}>
+                <View style={[styles.progressBarFill, { width: '65%' }]} />
+              </View>
+              <View style={styles.progressMeta}>
+                <Ionicons name="time-outline" size={14} color={Colors.gray500} />
+                <Text style={styles.progressTime}>15 mins remaining</Text>
+              </View>
+            </View>
+            <View style={styles.percentageCircle}>
+              <Text style={styles.percentageText}>65%</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>My Subjects</Text>
+          <View style={styles.subjectsGrid}>
+            <TouchableOpacity 
+              style={styles.subjectCard}
+              onPress={() => setSelectedSubject('science')}
+            >
+              <LinearGradient
+                colors={['#EEF2FF', '#E0E7FF']}
+                style={styles.subjectIconWrap}
+              >
+                <FontAwesome5 name="microscope" size={24} color="#6366F1" />
+              </LinearGradient>
+              <Text style={styles.subjectCardLabel}>Science</Text>
+              <Text style={styles.subjectMeta}>15 Chapters</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.subjectCard}>
+              <LinearGradient
+                colors={['#F0FDF4', '#DCFCE7']}
+                style={styles.subjectIconWrap}
+              >
+                <FontAwesome5 name="calculator" size={24} color="#10B981" />
+              </LinearGradient>
+              <Text style={styles.subjectCardLabel}>Maths</Text>
+              <Text style={styles.subjectMeta}>12 Chapters</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.subjectCard}>
+              <LinearGradient
+                colors={['#FFF7ED', '#FFEDD5']}
+                style={styles.subjectIconWrap}
+              >
+                <FontAwesome5 name="history" size={24} color="#F59E0B" />
+              </LinearGradient>
+              <Text style={styles.subjectCardLabel}>History</Text>
+              <Text style={styles.subjectMeta}>8 Chapters</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.subjectCard}>
+              <LinearGradient
+                colors={['#FEF2F2', '#FEE2E2']}
+                style={styles.subjectIconWrap}
+              >
+                <FontAwesome5 name="laptop-code" size={24} color="#EF4444" />
+              </LinearGradient>
+              <Text style={styles.subjectCardLabel}>IT</Text>
+              <Text style={styles.subjectMeta}>6 Chapters</Text>
             </TouchableOpacity>
           </View>
-          
-          <View style={styles.continueCard}>
-            <View style={styles.continueImagePlaceholder}>
-              <Text style={styles.continueEmoji}>📚</Text>
-            </View>
-            <View style={styles.continueContent}>
-              <Text style={styles.continueLabel}>SCIENCE • CHAPTER 4</Text>
-              <Text style={styles.continueTitle}>Carbon and its Compounds</Text>
-              <Text style={styles.continueProgress}>Last read: 2 hours ago</Text>
-              <View style={styles.progressBar}>
-                <View style={[styles.progressFill, { width: '45%' }]} />
-              </View>
-              <Text style={styles.progressText}>45% Completed</Text>
-            </View>
-          </View>
         </View>
 
-        {/* Subjects Grid */}
-        <View style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>Subjects</Text>
-          <View style={styles.subjectsGrid}>
-            {[
-              { emoji: '🔬', name: 'Science', color: '#00BCD4', key: 'science' },
-              { emoji: '📐', name: 'Mathematics', color: '#FF9800', key: 'math' },
-              { emoji: '🌍', name: 'History', color: '#4CAF50', key: 'history' },
-              { emoji: '🌐', name: 'English', color: '#9C27B0', key: 'english' },
-              { emoji: '🗺️', name: 'Geography', color: '#F44336', key: 'geography' },
-              { emoji: '💻', name: 'Computer', color: '#2196F3', key: 'computer' },
-            ].map((subject, idx) => (
-              <TouchableOpacity 
-                key={idx} 
-                style={[styles.subjectCard, { borderTopColor: subject.color }]}
-                onPress={() => subject.key === 'science' && setSelectedSubject('science')}
-              >
-                <Text style={styles.subjectEmoji}>{subject.emoji}</Text>
-                <Text style={styles.subjectName}>{subject.name}</Text>
+        <View style={styles.promoSection}>
+          <LinearGradient
+            colors={['#8B5CF6', '#6D28D9']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.promoCard}
+          >
+            <View style={styles.promoContent}>
+              <Text style={styles.promoTag}>LIMITED OFFER</Text>
+              <Text style={styles.promoTitle}>Unlock AI Tutor Pro</Text>
+              <Text style={styles.promoDesc}>Get unlimited vision help and 24/7 exam support.</Text>
+              <TouchableOpacity style={styles.promoButton}>
+                <Text style={styles.promoButtonText}>Upgrade Now</Text>
               </TouchableOpacity>
-            ))}
-          </View>
+            </View>
+            <View style={styles.promoImage}>
+              <FontAwesome5 name="rocket" size={60} color="rgba(255,255,255,0.3)" />
+            </View>
+          </LinearGradient>
         </View>
 
-        <View style={{ height: 20 }} />
+        <View style={{ height: 100 }} />
       </ScrollView>
 
       {/* Subject Detail Modal */}
@@ -246,87 +314,65 @@ export default function DashboardScreen() {
         onRequestClose={() => setSelectedSubject(null)}
       >
         <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
+          <LinearGradient colors={['#6366F1', '#4F46E5']} style={styles.modalHeaderModern}>
             <TouchableOpacity onPress={() => setSelectedSubject(null)}>
-              <MaterialIcons name="arrow-back" size={24} color="#ffffff" />
+              <Ionicons name="chevron-back" size={28} color={Colors.white} />
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>Science - Class 9</Text>
-            <View style={{ width: 24 }} />
-          </View>
+            <Text style={styles.modalTitleModern}>Science - Class 9</Text>
+            <TouchableOpacity>
+              <Ionicons name="search-outline" size={24} color={Colors.white} />
+            </TouchableOpacity>
+          </LinearGradient>
 
-          <ScrollView style={styles.modalContent}>
-            <View style={styles.subjectHeaderCard}>
-              <Text style={styles.subjectHeaderEmoji}>🔬</Text>
-              <Text style={styles.subjectHeaderTitle}>Science</Text>
-              <Text style={styles.subjectHeaderSubtitle}>Class 9 - NCERT</Text>
-              <View style={styles.statsRow}>
-                <View style={styles.statItem}>
-                  <Text style={styles.statNumber}>{chapterSummaries.length}</Text>
-                  <Text style={styles.statLabel}>Chapters</Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={styles.statNumber}>
-                    {chapterSummaries.reduce((sum, ch) => sum + ch.flashcards, 0)}
-                  </Text>
-                  <Text style={styles.statLabel}>Flashcards</Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={styles.statNumber}>
-                    {chapterSummaries.reduce((sum, ch) => sum + ch.quizQuestions, 0)}
-                  </Text>
-                  <Text style={styles.statLabel}>Questions</Text>
-                </View>
-              </View>
-            </View>
-
+          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
             <View style={styles.chaptersContainer}>
-              <Text style={styles.chaptersTitle}>Chapters</Text>
               {chapterSummaries.map((chapter, idx) => (
-                <View key={idx} style={styles.chapterCard}>
-                  <View style={styles.chapterHeader}>
-                    <View style={styles.chapterNumber}>
-                      <Text style={styles.chapterNumberText}>{chapter.id}</Text>
+                <TouchableOpacity key={idx} style={styles.chapterCardModern}>
+                  <View style={styles.chapterCardTop}>
+                    <View style={styles.chapterIdBox}>
+                      <Text style={styles.chapterIdText}>{chapter.id < 10 ? `0${chapter.id}` : chapter.id}</Text>
                     </View>
-                    <View style={styles.chapterInfo}>
-                      <Text style={styles.chapterTitle}>{chapter.title}</Text>
-                      <Text style={styles.chapterDifficulty}>{chapter.difficulty}</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.chapterStats}>
-                    <View style={styles.chapterStatItem}>
-                      <MaterialIcons name="layers" size={16} color="#FF6B35" />
-                      <Text style={styles.chapterStatText}>
-                        {chapter.flashcards} Flashcards
-                      </Text>
-                    </View>
-                    <View style={styles.chapterStatItem}>
-                      <MaterialIcons name="quiz" size={16} color="#4CAF50" />
-                      <Text style={styles.chapterStatText}>
-                        {chapter.quizQuestions} Questions
-                      </Text>
+                    <View style={styles.chapterInfoModern}>
+                      <Text style={styles.chapterTitleModern}>{chapter.title}</Text>
+                      <View style={styles.chapterBadges}>
+                        <View style={[styles.badge, { backgroundColor: '#EEF2FF' }]}>
+                          <Text style={[styles.badgeText, { color: '#6366F1' }]}>NCERT</Text>
+                        </View>
+                        <View style={[styles.badge, { backgroundColor: '#F0FDF4' }]}>
+                          <Text style={[styles.badgeText, { color: '#10B981' }]}>Class 9</Text>
+                        </View>
+                      </View>
                     </View>
                   </View>
 
-                  <View style={styles.chapterActions}>
-                    <TouchableOpacity style={styles.actionButton}>
-                      <MaterialIcons name="layers" size={18} color="#FF6B35" />
-                      <Text style={styles.actionButtonText}>Study</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionButton}>
-                      <MaterialIcons name="quiz" size={18} color="#4CAF50" />
-                      <Text style={styles.actionButtonText}>Quiz</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionButton}>
-                      <MaterialIcons name="note" size={18} color="#FF9800" />
-                      <Text style={styles.actionButtonText}>Notes</Text>
+                  <View style={styles.chapterDivider} />
+
+                  <View style={styles.chapterActionsModern}>
+                    <View style={styles.chapAction}>
+                      <View style={[styles.chapActionIcon, { backgroundColor: '#EEF2FF' }]}>
+                        <MaterialIcons name="layers" size={22} color="#6366F1" />
+                      </View>
+                      <Text style={styles.chapActionLabel}>{chapter.flashcards}</Text>
+                    </View>
+                    <View style={styles.chapAction}>
+                      <View style={[styles.chapActionIcon, { backgroundColor: '#F0FDF4' }]}>
+                        <MaterialIcons name="quiz" size={22} color="#10B981" />
+                      </View>
+                      <Text style={styles.chapActionLabel}>{chapter.quizQuestions}</Text>
+                    </View>
+                    <TouchableOpacity style={styles.startBtn}>
+                      <LinearGradient
+                        colors={['#6366F1', '#4F46E5']}
+                        style={styles.startBtnGradient}
+                      >
+                        <Text style={styles.startBtnText}>Start</Text>
+                      </LinearGradient>
                     </TouchableOpacity>
                   </View>
-                </View>
+                </TouchableOpacity>
               ))}
             </View>
-
-            <View style={{ height: 20 }} />
+            <View style={{ height: 40 }} />
           </ScrollView>
         </SafeAreaView>
       </Modal>
@@ -337,345 +383,409 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#F8FAFC',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
   },
   scrollView: {
     flex: 1,
   },
   header: {
+    paddingTop: 30,
+    paddingBottom: 50,
+    paddingHorizontal: 24,
+    borderBottomLeftRadius: 40,
+    borderBottomRightRadius: 40,
+  },
+  headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: '#2196F3',
+    alignItems: 'center',
+    marginBottom: 30,
   },
   greeting: {
-    fontSize: 14,
-    color: '#ffffff',
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
     fontWeight: '500',
   },
   studentName: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#ffffff',
+    fontSize: 28,
+    fontWeight: '800',
+    color: Colors.white,
     marginTop: 4,
   },
-  notificationBell: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+  headerIcons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  bellIcon: {
-    fontSize: 20,
+  statsBar: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 24,
+    paddingVertical: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  statBox: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statDivider: {
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  statValue: {
+    color: Colors.white,
+    fontSize: 18,
+    fontWeight: '800',
+    marginTop: 6,
+  },
+  statDesc: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  searchWrapper: {
+    marginTop: -22,
+    paddingHorizontal: 24,
+    zIndex: 10,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: 16,
-    marginVertical: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#ffffff',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  searchIcon: {
-    fontSize: 16,
-    marginRight: 8,
+    backgroundColor: Colors.white,
+    borderRadius: 18,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    ...Colors.cardShadow as any,
   },
   searchText: {
     flex: 1,
-    fontSize: 14,
-    color: '#999',
+    marginLeft: 12,
+    fontSize: 15,
+    color: Colors.gray400,
+    fontWeight: '500',
   },
-  quickAccessContainer: {
+  quickActions: {
     flexDirection: 'row',
-    paddingHorizontal: 12,
-    gap: 8,
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    marginTop: 30,
   },
-  quickAccessBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    backgroundColor: '#ffffff',
-    borderRadius: 10,
+  actionItem: {
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+    width: '22%',
   },
-  quickAccessIcon: {
-    fontSize: 24,
-    marginBottom: 4,
+  actionIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+    ...Colors.cardShadow as any,
   },
-  quickAccessLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#666',
+  actionLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.gray700,
   },
-  sectionContainer: {
-    paddingHorizontal: 16,
-    marginTop: 16,
+  section: {
+    marginTop: 32,
+    paddingHorizontal: 24,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1a1a1a',
+    fontSize: 20,
+    fontWeight: '800',
+    color: Colors.gray900,
   },
   viewAll: {
-    fontSize: 13,
-    color: '#2196F3',
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#6366F1',
   },
-  continueCard: {
+  progressCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 24,
+    padding: 16,
     flexDirection: 'row',
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+    alignItems: 'center',
+    ...Colors.cardShadow as any,
   },
-  continueImagePlaceholder: {
-    width: 80,
-    height: 100,
-    borderRadius: 8,
-    backgroundColor: '#E3F2FD',
+  progressIconBg: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: '#EEF2FF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
   },
-  continueEmoji: {
-    fontSize: 36,
-  },
-  continueContent: {
+  progressInfo: {
     flex: 1,
+    marginLeft: 16,
   },
-  continueLabel: {
-    fontSize: 11,
-    color: '#999',
-    fontWeight: '600',
+  progressCategory: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#6366F1',
     letterSpacing: 0.5,
-    marginBottom: 4,
   },
-  continueTitle: {
-    fontSize: 15,
+  progressTitle: {
+    fontSize: 16,
     fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 4,
+    color: Colors.gray900,
+    marginTop: 2,
   },
-  continueProgress: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 8,
+  progressBarContainer: {
+    height: 6,
+    backgroundColor: Colors.gray100,
+    borderRadius: 3,
+    marginTop: 10,
+    width: '100%',
   },
-  progressBar: {
-    height: 4,
-    backgroundColor: '#e0e0e0',
-    borderRadius: 2,
-    marginBottom: 8,
-    overflow: 'hidden',
-  },
-  progressFill: {
+  progressBarFill: {
     height: '100%',
-    backgroundColor: '#2196F3',
+    backgroundColor: '#6366F1',
+    borderRadius: 3,
   },
-  progressText: {
-    fontSize: 11,
-    color: '#2196F3',
-    fontWeight: '600',
+  progressMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 4,
+  },
+  progressTime: {
+    fontSize: 12,
+    color: Colors.gray500,
+    fontWeight: '500',
+  },
+  percentageCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 3,
+    borderColor: '#6366F1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 12,
+  },
+  percentageText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#6366F1',
   },
   subjectsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    justifyContent: 'space-between',
+    gap: 14,
   },
   subjectCard: {
-    width: '30%',
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    backgroundColor: '#ffffff',
-    borderRadius: 10,
-    borderTopWidth: 4,
+    width: '47%',
+    backgroundColor: Colors.white,
+    borderRadius: 24,
+    padding: 20,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+    ...Colors.cardShadow as any,
   },
-  subjectEmoji: {
-    fontSize: 28,
-    marginBottom: 8,
+  subjectIconWrap: {
+    width: 60,
+    height: 60,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  subjectName: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#1a1a1a',
-    textAlign: 'center',
-  },
-  errorText: {
+  subjectCardLabel: {
     fontSize: 16,
-    color: '#f44336',
-    textAlign: 'center',
+    fontWeight: '700',
+    color: Colors.gray900,
   },
-  // Modal Styles
+  subjectMeta: {
+    fontSize: 12,
+    color: Colors.gray500,
+    marginTop: 4,
+  },
+  promoSection: {
+    paddingHorizontal: 24,
+    marginTop: 32,
+  },
+  promoCard: {
+    borderRadius: 32,
+    flexDirection: 'row',
+    padding: 24,
+    overflow: 'hidden',
+  },
+  promoContent: {
+    flex: 2,
+  },
+  promoTag: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  promoTitle: {
+    color: Colors.white,
+    fontSize: 22,
+    fontWeight: '800',
+    marginTop: 6,
+  },
+  promoDesc: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 14,
+    marginTop: 8,
+    lineHeight: 20,
+  },
+  promoButton: {
+    backgroundColor: Colors.white,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    alignSelf: 'flex-start',
+    marginTop: 18,
+  },
+  promoButtonText: {
+    color: '#6D28D9',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  promoImage: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   modalContainer: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#F8FAFC',
   },
-  modalHeader: {
+  modalHeaderModern: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#2196F3',
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    paddingTop: Platform.OS === 'android' ? 40 : 20,
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#ffffff',
+  modalTitleModern: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: Colors.white,
   },
   modalContent: {
-    flex: 1,
-  },
-  subjectHeaderCard: {
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 16,
-    paddingVertical: 24,
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  subjectHeaderEmoji: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  subjectHeaderTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 4,
-  },
-  subjectHeaderSubtitle: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 20,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 24,
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#2196F3',
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
+    padding: 24,
   },
   chaptersContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    gap: 16,
   },
-  chaptersTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 12,
+  chapterCardModern: {
+    backgroundColor: Colors.white,
+    borderRadius: 24,
+    padding: 20,
+    ...Colors.cardShadow as any,
   },
-  chapterCard: {
-    backgroundColor: '#ffffff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  chapterHeader: {
+  chapterCardTop: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 12,
+    alignItems: 'center',
   },
-  chapterNumber: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FF6B35',
+  chapterIdBox: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: Colors.gray100,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
   },
-  chapterNumberText: {
+  chapterIdText: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#ffffff',
+    fontWeight: '900',
+    color: Colors.gray400,
   },
-  chapterInfo: {
+  chapterInfoModern: {
     flex: 1,
+    marginLeft: 16,
   },
-  chapterTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1a1a1a',
-    marginBottom: 4,
+  chapterTitleModern: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: Colors.gray900,
   },
-  chapterDifficulty: {
-    fontSize: 12,
-    color: '#666',
-  },
-  chapterStats: {
+  chapterBadges: {
     flexDirection: 'row',
-    gap: 16,
-    marginBottom: 12,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  chapterStatItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  chapterStatText: {
-    fontSize: 13,
-    color: '#666',
-    fontWeight: '500',
-  },
-  chapterActions: {
-    flexDirection: 'row',
+    marginTop: 6,
     gap: 8,
   },
-  actionButton: {
-    flex: 1,
+  badge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  badgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  chapterDivider: {
+    height: 1,
+    backgroundColor: Colors.gray100,
+    marginVertical: 16,
+  },
+  chapterActionsModern: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+    justifyContent: 'space-between',
   },
-  actionButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#1a1a1a',
+  chapAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  chapActionIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  chapActionLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.gray700,
+  },
+  startBtn: {
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  startBtnGradient: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  startBtnText: {
+    color: Colors.white,
+    fontWeight: '800',
+    fontSize: 14,
   },
 });
