@@ -24,6 +24,7 @@ import { MaterialIcons, Ionicons, FontAwesome5, MaterialCommunityIcons } from '@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { sendQuestion, processDocument } from '@/services/api';
 import { generateOfflineAnswer } from '@/services/offlineTutor';
+import { detectMathExpression, solveMathDetection } from '@/services/mathSolver';
 import { getOfflineMode, getPreferredLanguage } from '@/storage/settingsStore';
 import { saveChat, getCurrentChat, clearCurrentChat } from '@/storage/chatStore';
 import { ChatBubble } from '@/components/ChatBubble';
@@ -254,7 +255,6 @@ export default function TutorScreen() {
     if (!result.canceled) {
       setLoading(true);
       try {
-        // Post-process the cropped image to improve OCR accuracy
         const manipulated = await ImageManipulator.manipulateAsync(
           result.assets[0].uri,
           [
@@ -267,7 +267,6 @@ export default function TutorScreen() {
 
         const ocrResult = await OCRService.extractTextFromImage(manipulated.uri);
         if (ocrResult.text) {
-          // Ask user if they want to optimize the text with AI
           Alert.alert(
             'Text Scanned',
             'Would you like to optimize this text (fix OCR errors) using AI?',
@@ -298,6 +297,95 @@ export default function TutorScreen() {
       } catch (error) {
         console.error('OCR error:', error);
         Alert.alert('Error', 'Failed to scan text. Make sure the text is clear and readable.');
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const handleMathProblemScan = async () => {
+    const source = await new Promise<'camera' | 'library' | null>((resolve) => {
+      Alert.alert(
+        'Solve Math Problem',
+        'Capture a math equation or expression and let Siksha AI compute the answer.',
+        [
+          { text: 'Camera', onPress: () => resolve('camera') },
+          { text: 'Library', onPress: () => resolve('library') },
+          { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
+        ]
+      );
+    });
+
+    if (!source) return;
+
+    const { status } = source === 'camera'
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', `We need access to your ${source === 'camera' ? 'camera' : 'gallery'} to scan the math problem.`);
+      return;
+    }
+
+    const result = source === 'camera'
+      ? await ImagePicker.launchCameraAsync({
+          allowsEditing: true,
+          quality: 0.8,
+        })
+      : await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['images'],
+          allowsEditing: true,
+          quality: 0.8,
+        });
+
+    if (!result.canceled) {
+      setLoading(true);
+      try {
+        const manipulated = await ImageManipulator.manipulateAsync(
+          result.assets[0].uri,
+          [],
+          { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+        );
+
+        const ocrResult = await OCRService.extractTextFromImage(manipulated.uri);
+        const detection = detectMathExpression(ocrResult.text);
+
+        if (!detection) {
+          Alert.alert(
+            'Math not detected',
+            'We could not find a clear math expression in the image. Try cropping tighter around the equation and try again.'
+          );
+          return;
+        }
+
+        const solution = solveMathDetection(detection);
+        if (!solution) {
+          Alert.alert('Math error', 'The expression could not be evaluated automatically. Try a simpler expression or ask the AI tutor.');
+          return;
+        }
+
+        const userMessage: Message = {
+          id: Date.now().toString(),
+          text: 'Math problem from image',
+          isUser: true,
+          timestamp: new Date(),
+          imageUri: manipulated.uri,
+          extractedText: ocrResult.text,
+        };
+
+        const aiMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          text: `🧮 Math Solver\nProblem: ${detection.originalLine}\n${solution.explanation}\n${solution.answer}\n${solution.latex}`,
+          isUser: false,
+          timestamp: new Date(),
+        };
+
+        const updatedMessages = [...messages, userMessage, aiMessage];
+        setMessages(updatedMessages);
+        await saveChat(updatedMessages);
+      } catch (error) {
+        console.error('Math solve error:', error);
+        Alert.alert('Error', 'Failed to solve the math problem. Try again with a clearer image.');
       } finally {
         setLoading(false);
       }
@@ -482,6 +570,14 @@ export default function TutorScreen() {
               id="scan-btn"
             >
               <Ionicons name="document-text-outline" size={24} color={Colors.primary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              onPress={handleMathProblemScan} 
+              style={styles.mediaBtn}
+              id="math-btn"
+            >
+              <Ionicons name="calculator-outline" size={24} color={Colors.primary} />
             </TouchableOpacity>
             
             <TextInput

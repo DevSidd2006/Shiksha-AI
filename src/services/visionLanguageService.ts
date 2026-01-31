@@ -24,7 +24,7 @@ const getBackendUrl = () => {
 };
 
 export class VisionLanguageService {
-  private static readonly MODEL_NAME = 'qwen3-vl:2b';
+  private static readonly MODEL_NAME = 'gemma3:latest';
   // Use host machine IP instead of localhost for React Native
   private static readonly OLLAMA_BASE_URL = __DEV__
     ? 'http://10.0.2.2:11434'  // Android emulator
@@ -43,44 +43,38 @@ export class VisionLanguageService {
    * Falls back to OCR + text LLM if vision model is unavailable
    */
   static async analyzeImage(imageUri: string, question: string): Promise<string> {
-    // First, check if vision model is available
-    const visionAvailable = await this.isVisionModelAvailable();
-    
-    if (visionAvailable) {
-      try {
-        const result = await this.processImageWithQuestion(imageUri, question);
-        if (result.confidence && result.confidence > 0.5) {
-          return result.answer;
-        }
-      } catch (error) {
-        console.log('Vision model failed, falling back to OCR + LLM');
-      }
-    }
-
-    // Fallback: Use backend OCR + backend LLM (through /tutor endpoint)
-    console.log('Using OCR + text LLM fallback...');
+    console.log('🔍 Processing with Gemma3 vision model...');
     try {
-      const ocrResult = await OCRService.extractTextFromImage(imageUri);
-      
-      if (!ocrResult.text || ocrResult.text.trim().length < 10) {
-        return 'I could not extract meaningful text from this image. Please ensure the image is clear and contains readable text, or try asking about a specific part of the image.';
-      }
+      // Read image as base64
+      const uri = imageUri.startsWith('file://') ? imageUri : `file://${imageUri}`;
+      const base64Image = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
 
-      // Send extracted text to backend /tutor endpoint (which has Ollama access)
-      const response = await fetch(`${getBackendUrl()}/tutor`, {
+      const response = await fetch(`${getBackendUrl()}/vision`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          question: `The student uploaded an image. Here is the text extracted from it:\n\n"${ocrResult.text}"\n\nStudent's question: ${question}\n\nProvide a helpful, concise answer.`,
-          studentGrade: 'Class 9'
-        })
+          image: base64Image,
+          question: question || 'Describe this image in detail.',
+          studentGrade: 'Class 9',
+        }),
       });
 
+      if (!response.ok) {
+        throw new Error(`Vision API returned ${response.status}`);
+      }
+
       const data = await response.json();
-      return data.answer || `I extracted this text from the image:\n\n"${ocrResult.text}"\n\nPlease ask a specific question about it.`;
-    } catch (fallbackError) {
-      console.error('OCR fallback also failed:', fallbackError);
-      return 'I could not process this image. Please ensure the backend server is running and try again.';
+      if (!data.answer || data.answer.trim().length === 0) {
+        throw new Error('Vision model returned empty response');
+      }
+
+      console.log('✅ Vision model responded');
+      return data.answer;
+    } catch (error) {
+      console.error('❌ Vision model error:', error instanceof Error ? error.message : error);
+      return `I couldn't process this image. Please try again or ask the AI tutor directly. Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
   }
 
@@ -160,12 +154,12 @@ export class VisionLanguageService {
           model: this.MODEL_NAME,
           prompt: userPrompt,
           system: systemPrompt,
-          images: [base64Image], // Ollama expects base64 images array
+          images: [imageDataUri],
           stream: false,
           options: {
-            temperature: 0.1, // Lower temperature for more accurate answers
+            temperature: 0.1,
             top_p: 0.9,
-            num_predict: 1024, // Reasonable response length
+            num_predict: 1024,
           },
         }),
         signal: controller.signal,

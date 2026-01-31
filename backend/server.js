@@ -13,7 +13,7 @@ app.use(express.json({ limit: '50mb' })); // Increased limit for base64 images
 
 // Ollama configuration
 const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://localhost:11434';
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.2:3b';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma3:latest';
 const TRANSLATOR_SERVICE_URL = process.env.TRANSLATOR_SERVICE_URL || 'http://localhost:3001';
 
 // Check Ollama availability
@@ -88,7 +88,7 @@ const generateWithOllama = async (question, studentGrade = 'Class 9') => {
         stream: false,
         temperature: 0.7,
       },
-      { timeout: 30000 }
+      { timeout: 60000 }
     );
 
     return {
@@ -225,6 +225,60 @@ app.post('/translate', async (req, res) => {
     res.json({ translation });
   } catch (error) {
     res.status(500).json({ error: 'Translation failed.' });
+  }
+});
+
+// Vision endpoint using Gemma3 (proxied to Ollama)
+const VISION_MODEL = 'gemma3:latest';
+
+app.post('/vision', async (req, res) => {
+  try {
+    const { image, question, studentGrade = 'Class 9' } = req.body;
+
+    if (!image) {
+      return res.status(400).json({ error: 'Base64 image data is required' });
+    }
+
+    console.log(`\n🔍 Vision request: ${question}`);
+    console.log(`📷 Processing with ${VISION_MODEL}...`);
+
+    const systemPrompt = `You are a helpful AI Assistant for ${studentGrade} students. Analyze the provided image and answer the student's question accurately.
+
+GUIDELINES:
+- Keep explanations short, concise, and complete.
+- If the question is about text in the image, extract and explain it.
+- Be highly useful and direct. Use academic but simple language.`;
+
+    const response = await axios.post(
+      `${OLLAMA_HOST}/api/generate`,
+      {
+        model: VISION_MODEL,
+        prompt: question || 'Describe this image in detail.',
+        system: systemPrompt,
+        images: [image], // Ollama expects raw base64 (no data URI prefix)
+        stream: false,
+        options: {
+          temperature: 0.1,
+          num_predict: 1024,
+        },
+      },
+      { timeout: 120000 } // 2 minute timeout for vision
+    );
+
+    console.log('✅ Vision model responded');
+
+    res.json({
+      answer: response.data.response,
+      model: VISION_MODEL,
+      confidence: 0.95,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('❌ Vision error:', error.message);
+    res.status(500).json({ 
+      error: 'Vision processing failed', 
+      details: error.message 
+    });
   }
 });
 
