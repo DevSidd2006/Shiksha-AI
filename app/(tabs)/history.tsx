@@ -168,19 +168,23 @@ export default function HistoryScreen() {
             <View style={{ width: 40 }} />
           </View>
           <ScrollView contentContainerStyle={styles.modalScroll}>
-            {selectedChat?.map((msg: any, index: number) => (
-              <View
-                key={index}
-                style={[
-                  styles.msgBubble,
-                  msg.isUser ? styles.userBubble : styles.aiBubble
-                ]}
-              >
-                <Text style={[styles.msgText, msg.isUser ? styles.userMsgText : styles.aiMsgText]}>
-                  {msg.text}
-                </Text>
-              </View>
-            ))}
+            {selectedChat?.messages && selectedChat.messages.length > 0 ? (
+              selectedChat.messages.map((msg: any, index: number) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.msgBubble,
+                    msg.isUser ? styles.userBubble : styles.aiBubble
+                  ]}
+                >
+                  <Text style={[styles.msgText, msg.isUser ? styles.userMsgText : styles.aiMsgText]}>
+                    {msg.text}
+                  </Text>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.emptyText}>No messages in this conversation</Text>
+            )}
           </ScrollView>
         </SafeAreaView>
       </Modal>
@@ -347,5 +351,12 @@ const styles = StyleSheet.create({
   },
   aiMsgText: {
     color: Colors.gray800,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: Colors.gray500,
+    textAlign: 'center',
+    marginTop: 40,
+    fontFamily: Fonts.regular,
   },
 });
