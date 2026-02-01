@@ -1,7 +1,0 @@
-{
-  "buildCommand": "npx expo export --platform web",
-  "outputDirectory": "dist",
-  "env": {
-    "EXPO_PUBLIC_API_URL": "@api_url"
-  }
-}

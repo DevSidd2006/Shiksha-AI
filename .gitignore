@@ -1,3 +1,5 @@
+# Siksha AI Git Ignore
+# Last Updated: 2026-02-01
 node_modules/
 .expo/
 dist/
