@@ -2,7 +2,7 @@
 
 ## Overview
 
-Siksha AI now includes **multilingual text-to-speech** capabilities, allowing users to listen to AI tutor responses in their preferred language.
+Shiksha AI now includes **multilingual text-to-speech** capabilities, allowing users to listen to AI tutor responses in their preferred language.
 
 **Supported Languages:**
 - ✅ English (en-IN, en-US)
@@ -239,4 +239,4 @@ export function SpeakableText({ text }: { text: string }) {
 
 ## License
 
-MIT - Part of Siksha AI
+MIT - Part of Shiksha AI

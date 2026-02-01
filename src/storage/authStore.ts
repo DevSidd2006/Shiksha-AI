@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const AUTH_KEY = '@siksha_auth';
-const USERS_KEY = '@siksha_users';
+const AUTH_KEY = '@shiksha_auth';
+const USERS_KEY = '@shiksha_users';
 
 export interface User {
   id: string;

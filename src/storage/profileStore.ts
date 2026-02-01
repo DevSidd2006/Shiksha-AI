@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const PROFILE_KEY = '@siksha_student_profile';
+const PROFILE_KEY = '@shiksha_student_profile';
 
 export interface StudentProfile {
   id: string;
@@ -39,7 +39,7 @@ const DEFAULT_PROFILE: StudentProfile = {
   weeklyGoal: 300, // 5 hours per week
   avatar: '👨‍🎓',
   joinDate: new Date(),
-  bio: 'Learning with Siksha AI',
+  bio: 'Learning with Shiksha AI',
   badges: [],
   statistics: {
     totalChatsCompleted: 0,

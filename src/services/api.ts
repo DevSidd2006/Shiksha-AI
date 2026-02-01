@@ -19,7 +19,7 @@ const getDevBaseUrl = () => {
 
 const API_URL = __DEV__ 
   ? getDevBaseUrl()
-  : (process.env.EXPO_PUBLIC_API_URL || 'https://sikshaai-backend.vercel.app');
+  : (process.env.EXPO_PUBLIC_API_URL || 'https://shikshaai-backend.vercel.app');
 
 export interface TutorResponse {
   answer: string;

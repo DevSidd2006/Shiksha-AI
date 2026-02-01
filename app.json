@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Siksha AI",
-    "slug": "siksha-ai",
+    "name": "Shiksha AI",
+    "slug": "shiksha-ai",
     "version": "1.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -10,12 +10,12 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.siksha.ai"
+      "bundleIdentifier": "com.shiksha.ai"
     },
     "android": {
-      "package": "com.siksha.ai"
+      "package": "com.shiksha.ai"
     },
-    "scheme": "sikshaai",
+    "scheme": "shikshaai",
     "extra": {
       "eas": {
         "projectId": "892dbdc9-a5ef-4743-af5a-41045790dff1"

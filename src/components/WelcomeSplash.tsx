@@ -127,7 +127,7 @@ export function WelcomeSplash({ visible, onClose }: WelcomeSplashProps) {
                                 transform: [{ translateY: slideAnim }],
                             }}
                         >
-                            <Text style={styles.appName}>Siksha AI</Text>
+                            <Text style={styles.appName}>Shiksha AI</Text>
                             <Text style={styles.tagline}>Your Personal AI Tutor</Text>
                             <View style={styles.featuresList}>
                                 <Text style={styles.feature}>✨ Smart Learning</Text>

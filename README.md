@@ -1,9 +1,9 @@
-# 📚 Siksha AI
+# 📚 Shiksha AI
 
-**GitHub Repository:** [https://github.com/Siksha-AI/Siksha-AI](https://github.com/Siksha-AI/Siksha-AI)
+**GitHub Repository:** [https://github.com/DevSidd2006/Shiksha-AI](https://github.com/DevSidd2006/Shiksha-AI)
 
 ## 🌟 Project Overview
-Siksha AI is an **offline-first AI-powered tutor** specifically designed for Class 9-10 students in India. It aims to bridge the digital divide by providing high-quality, personalized educational support even in areas with limited or no internet connectivity. By leveraging local LLMs and vision models, Siksha AI allows students to ask questions, solve math problems, and understand complex concepts through text, voice, and image analysis.
+Shiksha AI is an **offline-first AI-powered tutor** specifically designed for Class 9-10 students in India. It aims to bridge the digital divide by providing high-quality, personalized educational support even in areas with limited or no internet connectivity. By leveraging local LLMs and vision models, Shiksha AI allows students to ask questions, solve math problems, and understand complex concepts through text, voice, and image analysis.
 
 ### The Problem it Solves
 - **Internet Dependency:** Most AI educational tools require a stable internet connection, which is often unavailable in rural or remote areas.
@@ -35,8 +35,8 @@ The core idea is to democratize education by localizing AI. By running lightweig
 
 ```bash
 # 1. Clone & install
-git clone https://github.com/yourusername/siksha-ai.git
-cd siksha-ai && npm install
+git clone https://github.com/yourusername/shiksha-ai.git
+cd shiksha-ai && npm install
 
 # 2. Pull AI models
 ollama pull llama3.2:3b      # Primary tutor
@@ -73,7 +73,27 @@ EXPO_PUBLIC_API_URL=http://10.0.2.2:3000
 
 ---
 
-## Project Structure
+## 📱 Screenshots
+
+<div align="center">
+  <table style="width: 100%; border-collapse: collapse;">
+    <tr>
+      <td align="center"><b>Dashboard</b><br/><img src="images/dashboard.jpeg" width="200" alt="Dashboard"/></td>
+      <td align="center"><b>AI Tutor Chat</b><br/><img src="images/chat.jpeg" width="200" alt="AI Tutor Chat"/></td>
+      <td align="center"><b>Study Notes</b><br/><img src="images/notes.jpeg" width="200" alt="Study Notes"/></td>
+    </tr>
+    <tr>
+      <td align="center"><b>Flashcards</b><br/><img src="images/flashcards.jpeg" width="200" alt="Flashcards"/></td>
+      <td align="center"><b>Interactive Quizzes</b><br/><img src="images/quiz.jpeg" width="200" alt="Quizzes"/></td>
+      <td align="center"><b>Progress Tracker</b><br/><img src="images/tracker.jpeg" width="200" alt="Progress Tracker"/></td>
+    </tr>
+    <tr>
+      <td align="center" colspan="3"><b>User Profile</b><br/><img src="images/profile.jpeg" width="200" alt="User Profile"/></td>
+    </tr>
+  </table>
+</div>
+
+---
 
 ```
 app/(tabs)/          # Screens: tutor, notes, flashcards, quiz, progress, settings

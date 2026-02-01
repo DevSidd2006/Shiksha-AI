@@ -1,6 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 
-const db = SQLite.openDatabaseSync('siksha_ai.db');
+const db = SQLite.openDatabaseSync('shiksha_ai.db');
 
 export interface AchievementDefinition {
   id: string;

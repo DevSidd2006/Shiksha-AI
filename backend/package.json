@@ -1,7 +1,7 @@
 {
-  "name": "siksha-ai-backend",
+  "name": "shiksha-ai-backend",
   "version": "1.0.0",
-  "description": "Backend server for Siksha AI Tutor",
+  "description": "Backend server for Shiksha AI Tutor",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

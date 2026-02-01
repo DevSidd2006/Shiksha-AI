@@ -100,7 +100,7 @@ export default function SettingsScreen() {
               <Text style={styles.avatarText}>{profile?.name?.charAt(0) || 'S'}</Text>
             </View>
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>{profile?.name || 'Siksha Student'}</Text>
+              <Text style={styles.profileName}>{profile?.name || 'Shiksha Student'}</Text>
               <Text style={styles.profileGrade}>{profile?.grade || 'Class 9'} • {profile?.board || 'CBSE'}</Text>
             </View>
           </View>
@@ -178,7 +178,7 @@ export default function SettingsScreen() {
               <Ionicons name="star-outline" size={20} color={Colors.gray600} />
             </View>
             <View style={styles.settingContent}>
-              <Text style={styles.settingLabel}>Rate Siksha AI</Text>
+              <Text style={styles.settingLabel}>Rate Shiksha AI</Text>
               <Text style={styles.settingHint}>Support our development</Text>
             </View>
             <MaterialIcons name="chevron-right" size={24} color={Colors.gray400} />

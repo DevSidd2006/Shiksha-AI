@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const CURRENT_CHAT_KEY = '@siksha_current_chat';
-const CHAT_HISTORY_KEY = '@siksha_chat_history';
+const CURRENT_CHAT_KEY = '@shiksha_current_chat';
+const CHAT_HISTORY_KEY = '@shiksha_chat_history';
 
 interface Message {
   id: string;

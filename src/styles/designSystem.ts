@@ -1,4 +1,4 @@
-// Design System for Siksha AI - Student-Focused UI (Indigo/Violet Theme)
+// Design System for Shiksha AI - Student-Focused UI (Indigo/Violet Theme)
 
 export const Colors = {
   // Primary - Pro Indigo

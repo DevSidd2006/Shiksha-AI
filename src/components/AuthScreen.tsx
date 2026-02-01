@@ -84,7 +84,7 @@ export function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
               <View style={styles.logoContainer}>
                 <Ionicons name="school" size={50} color={Colors.white} />
               </View>
-              <Text style={styles.appName}>Siksha AI</Text>
+              <Text style={styles.appName}>Shiksha AI</Text>
               <Text style={styles.appSubtitle}>Your Personal Learning Assistant</Text>
             </View>
 
@@ -112,7 +112,7 @@ export function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                   <Ionicons name="mail-outline" size={20} color={Colors.gray400} />
                   <TextInput
                     style={styles.input}
-                    placeholder="student@siksha.ai"
+                    placeholder="student@shiksha.ai"
                     value={email}
                     onChangeText={setEmail}
                     keyboardType="email-address"

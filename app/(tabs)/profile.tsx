@@ -201,7 +201,7 @@ export default function ProfileScreen() {
           </View>
 
           <View style={styles.versionContainer}>
-            <Text style={styles.versionText}>Siksha AI v1.0.0</Text>
+            <Text style={styles.versionText}>Shiksha AI v1.0.0</Text>
             <Text style={styles.versionText}>Made with ❤️ for students</Text>
           </View>
         </View>

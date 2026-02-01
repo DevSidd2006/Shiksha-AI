@@ -1,7 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
 // Initialize database
-const db = SQLite.openDatabaseSync('siksha_ai.db');
+const db = SQLite.openDatabaseSync('shiksha_ai.db');
 
 export const initializeDatabase = async () => {
   try {

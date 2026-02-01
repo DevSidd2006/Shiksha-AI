@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const OFFLINE_MODE_KEY = '@siksha_offline_mode';
-const PREFERRED_LANGUAGE_KEY = '@siksha_preferred_language';
+const OFFLINE_MODE_KEY = '@shiksha_offline_mode';
+const PREFERRED_LANGUAGE_KEY = '@shiksha_preferred_language';
 
 export async function getOfflineMode(): Promise<boolean> {
   try {

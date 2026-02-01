@@ -39,7 +39,7 @@ checkOllama();
 app.get('/', (req, res) => {
   res.json({ 
     status: 'ok', 
-    message: 'Siksha AI Backend is running',
+    message: 'Shiksha AI Backend is running',
     version: '1.0.0',
     ollama: ollamaAvailable ? 'connected' : 'disconnected',
     aiModel: OLLAMA_MODEL
@@ -330,7 +330,7 @@ app.post('/ocr', async (req, res) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`🚀 Siksha AI Backend running on http://localhost:${PORT}`);
+  console.log(`🚀 Shiksha AI Backend running on http://localhost:${PORT}`);
   console.log(`📚 Local Ollama Engine: ${OLLAMA_MODEL}`);
   console.log(`📚 Ready to help students learn!`);
 });

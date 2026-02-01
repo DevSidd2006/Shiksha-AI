@@ -1,4 +1,4 @@
-# Siksha AI - System Architecture (Offline-First v0+)
+# Shiksha AI - System Architecture (Offline-First v0+)
 
 ## 🏗️ High-Level Overview
 
@@ -90,7 +90,7 @@ User types question
 ┌─────────────────────────────────────┐
 │      AsyncStorage (Phone)           │
 │                                     │
-│  Key: @siksha_current_chat          │
+│  Key: @shiksha_current_chat          │
 │  Value: {                           │
 │    id: "1703345678901",             │
 │    messages: [                      │
@@ -101,7 +101,7 @@ User types question
 │    timestamp: "2025-12-23..."       │
 │  }                                  │
 │                                     │
-│  Key: @siksha_chat_history          │
+│  Key: @shiksha_chat_history          │
 │  Value: [                           │
 │    { id, messages[], timestamp },   │
 │    { id, messages[], timestamp },   │
@@ -265,7 +265,7 @@ messages = [
 
 // Stored as
 {
-  "@siksha_current_chat": {
+  "@shiksha_current_chat": {
     id: "1703345678901",
     messages: [...],
     timestamp: "2025-12-23T10:30:00.000Z"

@@ -307,7 +307,7 @@ export default function TutorScreen() {
     const source = await new Promise<'camera' | 'library' | null>((resolve) => {
       Alert.alert(
         'Solve Math Problem',
-        'Capture a math equation or expression and let Siksha AI compute the answer.',
+        'Capture a math equation or expression and let Shiksha AI compute the answer.',
         [
           { text: 'Camera', onPress: () => resolve('camera') },
           { text: 'Library', onPress: () => resolve('library') },
@@ -432,7 +432,7 @@ export default function TutorScreen() {
     {
       targetId: 'header-mode',
       title: 'Online & Offline Mode',
-      description: 'Switch to offline mode in settings to use Siksha AI without internet.',
+      description: 'Switch to offline mode in settings to use Shiksha AI without internet.',
     },
     {
       targetId: 'attach-btn',
@@ -469,7 +469,7 @@ export default function TutorScreen() {
               <View style={[styles.statusIndicator, { backgroundColor: offlineMode ? '#FFD93D' : '#4CAF50' }]} />
             </View>
             <View>
-              <Text style={styles.headerTitle}>Siksha AI Tutor</Text>
+              <Text style={styles.headerTitle}>Shiksha AI Tutor</Text>
               <Text style={styles.headerStatus}>{offlineMode ? 'Running Locally' : 'Online • Ready'}</Text>
             </View>
           </View>
