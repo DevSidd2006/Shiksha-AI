@@ -343,3 +343,46 @@ This architecture is intentionally **simple** for v0. As you add features, you c
 - Implement caching strategies
 - Add error boundaries
 - Implement retry logic
+
+graph TD
+    subgraph "📱 Mobile Client (React Native + Expo)"
+        UI[User Interface - Tabs/Screens]
+        Store[Zustand & AsyncStorage - UI State]
+        DB[(Local SQLite - Offline Data)]
+        Math[MathSolver - mathjs + KaTeX]
+        TTS[Multilingual TTS - expo-speech]
+        Camera[Camera & ImagePicker]
+    end
+
+    subgraph "⚙️ Backend Services (Node.js/Express)"
+        Proxy[Proxy API Server - Port 3000]
+        OCR[Tesseract.js Engine]
+        DocProc[Document Processor]
+    end
+
+    subgraph "🤖 AI Layer (Local Intelligence)"
+        Ollama[Ollama Engine - Port 11434]
+        Gemma[(Gemma3:latest - Unified Text/Vision)]
+    end
+
+    subgraph "🌍 Multilingual Microservice (Python)"
+        NLLB[NLLB-200 Translator - Port 3001]
+    end
+
+    %% Connections
+    UI --> Math
+    UI --> Store
+    Store --> DB
+    UI --> TTS
+    
+    Camera --> UI
+    UI -- "images + questions" --> Proxy
+    
+    Proxy --> OCR
+    Proxy -- "proxy request" --> Ollama
+    Ollama --> Gemma
+    
+    Proxy -- "translate" --> NLLB
+    
+    Ollama -- "response" --> Proxy
+    Proxy -- "structured JSON" --> UI

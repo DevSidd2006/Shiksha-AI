@@ -85,7 +85,7 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
             <Text style={styles.userName}>{profile?.name || 'Student'}</Text>
-            <Text style={styles.userGrade}>{profile?.grade || 'Class 9th'} • Science Stream</Text>
+            <Text style={styles.userGrade}>{profile?.grade || 'Class 9'}</Text>
           </View>
         </LinearGradient>
 
@@ -137,8 +137,38 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          <Text style={styles.sectionTitle}>Account</Text>
+          <Text style={styles.sectionTitle}>Account & App</Text>
           <View style={styles.settingsGroup}>
+            <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/settings')}>
+              <View style={styles.settingInfo}>
+                <View style={[styles.settingIconBg, { backgroundColor: '#F8FAFC' }]}>
+                  <Ionicons name="settings" size={20} color={Colors.gray600} />
+                </View>
+                <Text style={styles.settingLabel}>App Settings</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Colors.gray400} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/history')}>
+              <View style={styles.settingInfo}>
+                <View style={[styles.settingIconBg, { backgroundColor: '#F8FAFC' }]}>
+                  <Ionicons name="time" size={20} color={Colors.gray600} />
+                </View>
+                <Text style={styles.settingLabel}>Chat History</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Colors.gray400} />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/notes')}>
+              <View style={styles.settingInfo}>
+                <View style={[styles.settingIconBg, { backgroundColor: '#F8FAFC' }]}>
+                  <Ionicons name="document-text" size={20} color={Colors.gray600} />
+                </View>
+                <Text style={styles.settingLabel}>My Study Notes</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={Colors.gray400} />
+            </TouchableOpacity>
+
             <TouchableOpacity style={styles.menuItem}>
               <View style={styles.settingInfo}>
                 <View style={[styles.settingIconBg, { backgroundColor: '#F8FAFC' }]}>

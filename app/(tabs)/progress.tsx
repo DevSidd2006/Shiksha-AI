@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, FontAwesome5, Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Spacing, BorderRadius } from '@/styles/designSystem';
+import { useRouter } from 'expo-router';
 import {
   calculateStudyStats,
   formatTimeSpent,
@@ -26,6 +27,7 @@ import {
 const { width } = Dimensions.get('window');
 
 export default function ProgressScreen() {
+  const router = useRouter();
   const [sessions, setSessions] = useState<StudySession[]>([
     {
       id: '1',
@@ -98,9 +100,20 @@ export default function ProgressScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
       <LinearGradient colors={['#6366F1', '#4F46E5'] as any} style={styles.header}>
-        <SafeAreaView edges={['top']}>
-          <Text style={styles.headerSubtitle}>Personal Dashboard</Text>
-          <Text style={styles.headerTitle}>Growth Tracking</Text>
+        <SafeAreaView edges={['top']} style={styles.headerSafe}>
+          <View style={styles.headerContentRows}>
+            <View>
+              <Text style={styles.headerSubtitle}>Personal Dashboard</Text>
+              <Text style={styles.headerTitle}>Growth Tracking</Text>
+            </View>
+            <TouchableOpacity 
+              style={styles.historyBtn} 
+              onPress={() => router.push('/history')}
+            >
+              <Ionicons name="time-outline" size={24} color={Colors.white} />
+              <Text style={styles.historyBtnText}>History</Text>
+            </TouchableOpacity>
+          </View>
         </SafeAreaView>
       </LinearGradient>
 
@@ -713,6 +726,29 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: Colors.white,
     fontSize: 16,
+    fontWeight: '700',
+  },
+  headerSafe: {
+    paddingHorizontal: 20,
+    paddingBottom: 15,
+  },
+  headerContentRows: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  historyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    gap: 6,
+  },
+  historyBtnText: {
+    color: Colors.white,
+    fontSize: 13,
     fontWeight: '700',
   },
 });

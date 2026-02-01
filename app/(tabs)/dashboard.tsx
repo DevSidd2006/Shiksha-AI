@@ -12,6 +12,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { MaterialIcons, FontAwesome5, Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { DashboardService, DashboardStats } from '@/services/dashboardService';
@@ -46,6 +47,7 @@ interface ChapterSummary {
 }
 
 export default function DashboardScreen() {
+  const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -142,10 +144,10 @@ export default function DashboardScreen() {
               <Text style={styles.studentName}>{profile?.name || 'Academic Star'}</Text>
             </View>
             <View style={styles.headerIcons}>
-              <TouchableOpacity style={styles.iconButton}>
+              <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/settings')}>
                 <Ionicons name="notifications-outline" size={24} color={Colors.white} />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.iconButton}>
+              <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/profile')}>
                 <Ionicons name="person-outline" size={24} color={Colors.white} />
               </TouchableOpacity>
             </View>
@@ -178,38 +180,38 @@ export default function DashboardScreen() {
         </View>
 
         <View style={styles.quickActions}>
-          <TouchableOpacity style={styles.actionItem}>
+          <TouchableOpacity style={styles.actionItem} onPress={() => router.push('/flashcards')}>
             <View style={[styles.actionIcon, { backgroundColor: '#EEF2FF' }]}>
               <Ionicons name="book" size={26} color="#6366F1" />
             </View>
             <Text style={styles.actionLabel}>Library</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionItem}>
+          <TouchableOpacity style={styles.actionItem} onPress={() => router.push('/progress')}>
             <View style={[styles.actionIcon, { backgroundColor: '#F0FDF4' }]}>
               <Ionicons name="stats-chart" size={26} color="#10B981" />
             </View>
             <Text style={styles.actionLabel}>Progress</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionItem}>
+          <TouchableOpacity style={styles.actionItem} onPress={() => router.push('/tutor')}>
             <View style={[styles.actionIcon, { backgroundColor: '#FFF7ED' }]}>
               <Ionicons name="chatbubbles" size={26} color="#F59E0B" />
             </View>
             <Text style={styles.actionLabel}>Ask AI</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionItem}>
+          <TouchableOpacity style={styles.actionItem} onPress={() => router.push('/quiz')}>
             <View style={[styles.actionIcon, { backgroundColor: '#FEF2F2' }]}>
               <Ionicons name="flash" size={26} color="#EF4444" />
             </View>
-            <Text style={styles.actionLabel}>Mistakes</Text>
+            <Text style={styles.actionLabel}>Quiz</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Continue Learning</Text>
-            <TouchableOpacity><Text style={styles.viewAll}>Resume</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/flashcards')}><Text style={styles.viewAll}>Resume</Text></TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.progressCard}>
+          <TouchableOpacity style={styles.progressCard} onPress={() => router.push('/flashcards')}>
             <View style={styles.progressIconBg}>
               <FontAwesome5 name="atom" size={28} color="#6366F1" />
             </View>
@@ -235,7 +237,7 @@ export default function DashboardScreen() {
           <View style={styles.subjectsGrid}>
             <TouchableOpacity 
               style={styles.subjectCard}
-              onPress={() => setSelectedSubject('science')}
+              onPress={() => router.push('/flashcards')}
             >
               <LinearGradient
                 colors={['#EEF2FF', '#E0E7FF']}
@@ -247,7 +249,7 @@ export default function DashboardScreen() {
               <Text style={styles.subjectMeta}>15 Chapters</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.subjectCard}>
+            <TouchableOpacity style={styles.subjectCard} onPress={() => router.push('/flashcards')}>
               <LinearGradient
                 colors={['#F0FDF4', '#DCFCE7']}
                 style={styles.subjectIconWrap}
@@ -258,7 +260,7 @@ export default function DashboardScreen() {
               <Text style={styles.subjectMeta}>12 Chapters</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.subjectCard}>
+            <TouchableOpacity style={styles.subjectCard} onPress={() => router.push('/flashcards')}>
               <LinearGradient
                 colors={['#FFF7ED', '#FFEDD5']}
                 style={styles.subjectIconWrap}
@@ -269,7 +271,7 @@ export default function DashboardScreen() {
               <Text style={styles.subjectMeta}>8 Chapters</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.subjectCard}>
+            <TouchableOpacity style={styles.subjectCard} onPress={() => router.push('/flashcards')}>
               <LinearGradient
                 colors={['#FEF2F2', '#FEE2E2']}
                 style={styles.subjectIconWrap}
@@ -293,8 +295,8 @@ export default function DashboardScreen() {
               <Text style={styles.promoTag}>LIMITED OFFER</Text>
               <Text style={styles.promoTitle}>Unlock AI Tutor Pro</Text>
               <Text style={styles.promoDesc}>Get unlimited vision help and 24/7 exam support.</Text>
-              <TouchableOpacity style={styles.promoButton}>
-                <Text style={styles.promoButtonText}>Upgrade Now</Text>
+              <TouchableOpacity style={styles.promoButton} onPress={() => router.push('/tutor')}>
+                <Text style={styles.promoButtonText}>Try Now</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.promoImage}>
