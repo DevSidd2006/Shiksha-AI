@@ -1,12 +1,37 @@
 # 📚 Siksha AI
 
-**Offline-first AI tutor for Class 9-10 students**
+**GitHub Repository:** [https://github.com/Siksha-AI/Siksha-AI](https://github.com/Siksha-AI/Siksha-AI)
 
-React Native • Expo SDK 54 • Ollama • TypeScript
+## 🌟 Project Overview
+Siksha AI is an **offline-first AI-powered tutor** specifically designed for Class 9-10 students in India. It aims to bridge the digital divide by providing high-quality, personalized educational support even in areas with limited or no internet connectivity. By leveraging local LLMs and vision models, Siksha AI allows students to ask questions, solve math problems, and understand complex concepts through text, voice, and image analysis.
+
+### The Problem it Solves
+- **Internet Dependency:** Most AI educational tools require a stable internet connection, which is often unavailable in rural or remote areas.
+- **Language Barriers:** Provides support in regional languages (starting with Hindi) to make learning accessible.
+- **Personalized Learning:** Offers a 1:1 tutoring experience that adapts to the student's progress and curriculum (CBSE/State Boards).
+
+## 🚀 Project Details
+### The Idea
+The core idea is to democratize education by localizing AI. By running lightweight, optimized models directly on the user's device or a local server (via Ollama), we ensure that learning never stops due to data limits or poor reception.
+
+### Technology Stack & Tools
+- **Frontend:** React Native with Expo (SDK 54) for a seamless cross-platform mobile experience.
+- **AI Models:** 
+  - **Llama 3.2 (3b):** Primary reasoning and tutoring engine.
+  - **Qwen3-VL (2b):** Vision-language model for analyzing textbook images and diagrams.
+  - **Ollama:** Used for local health and orchestration of AI models.
+- **Storage:** 
+  - **Expo SQLite:** For structured data like progress, quizzes, and local chat history.
+  - **Zustand:** For local state management ($authStore.ts$, $chatStore.ts$).
+- **Data & Tools:**
+  - **Tesseract.js:** For OCR (Optical Character Recognition) of textbook text.
+  - **Expo Speech:** For Text-to-Speech capabilities in multiple languages.
+  - **Math.js / KaTeX:** For rendering and solving mathematical equations.
+- **Backend (Optional Sync):** Node.js/Express for cloud backup and analytics when online.
 
 ---
 
-## Quick Start
+## ⚡ Quick Start
 
 ```bash
 # 1. Clone & install
