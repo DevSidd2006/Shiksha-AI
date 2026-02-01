@@ -1,6 +1,7 @@
 # 📚 Shiksha AI
 
-**GitHub Repository:** [https://github.com/DevSidd2006/Shiksha-AI](https://github.com/DevSidd2006/Shiksha-AI)
+**GitHub Repository:** [https://github.com/DevSidd2006/Shiksha-AI](https://github.com/DevSidd2006/Shiksha-AI)  
+**Product Demo:** [Watch Video](https://drive.google.com/file/d/1dGCMfZqWeHgC8Ql0hEvkLEB4CFUUKJ9g/view?usp=sharing)
 
 ## 🌟 Project Overview
 Shiksha AI is an **offline-first AI-powered tutor** specifically designed for Class 9-10 students in India. It aims to bridge the digital divide by providing high-quality, personalized educational support even in areas with limited or no internet connectivity. By leveraging local LLMs and vision models, Shiksha AI allows students to ask questions, solve math problems, and understand complex concepts through text, voice, and image analysis.
@@ -17,9 +18,8 @@ The core idea is to democratize education by localizing AI. By running lightweig
 ### Technology Stack & Tools
 - **Frontend:** React Native with Expo (SDK 54) for a seamless cross-platform mobile experience.
 - **AI Models:** 
-  - **Llama 3.2 (3b):** Primary reasoning and tutoring engine.
-  - **Qwen3-VL (2b):** Vision-language model for analyzing textbook images and diagrams.
-  - **Ollama:** Used for local health and orchestration of AI models.
+  - **Gemma 3 (4b/12b):** Our unified multimodal model used for both reasoning and vision tasks.
+  - **Ollama:** Used for local hosting and orchestration of the Gemma 3 model.
 - **Storage:** 
   - **Expo SQLite:** For structured data like progress, quizzes, and local chat history.
   - **Zustand:** For local state management ($authStore.ts$, $chatStore.ts$).
@@ -28,6 +28,16 @@ The core idea is to democratize education by localizing AI. By running lightweig
   - **Expo Speech:** For Text-to-Speech capabilities in multiple languages.
   - **Math.js / KaTeX:** For rendering and solving mathematical equations.
 - **Backend (Optional Sync):** Node.js/Express for cloud backup and analytics when online.
+
+## 🧠 How We Use AI
+- **Unified Multimodal AI:** Powered by **Gemma 3** (via Ollama) for local reasoning and visual diagram analysis.
+- **Socratic Tutoring:** Guides students through logic and NCERT curriculum rather than just providing answers.
+- **Offline Intelligence:** Optimized to run on mid-range hardware, ensuring 100% privacy and accessibility.
+
+## 🌍 Why It Matters
+- **Digital Equity:** Brings advanced tutoring to "internet shadow zones."
+- **Teacher Support:** Assists in large classrooms by providing 1:1 student help.
+- **Sustainable:** Zero API fees or data costs after the initial setup.
 
 ---
 
@@ -39,9 +49,7 @@ git clone https://github.com/yourusername/shiksha-ai.git
 cd shiksha-ai && npm install
 
 # 2. Pull AI models
-ollama pull llama3.2:3b      # Primary tutor
-ollama pull qwen3-vl:2b      # Vision model
-ollama pull gemma3:1b        # Fallback
+ollama pull gemma3:4b      # Unified model for Tutoring & Vision
 ollama serve
 
 # 3. Start backend
@@ -113,9 +121,8 @@ backend/
 
 | Model | Purpose | Command |
 |-------|---------|---------|
-| llama3.2:3b | Primary tutor | `ollama pull llama3.2:3b` |
-| qwen3-vl:2b | Image analysis | `ollama pull qwen3-vl:2b` |
-| gemma3:1b | OCR fallback | `ollama pull gemma3:1b` |
+| gemma3:4b | Tutoring & Vision (Primary) | `ollama pull gemma3:4b` |
+| gemma3:12b | High-accuracy mode | `ollama pull gemma3:12b` |
 
 ---
 
@@ -161,7 +168,7 @@ Supports: English, Hindi, Marathi, Tamil, Telugu, Bengali
 | Issue | Fix |
 |-------|-----|
 | Ollama not connecting | `ollama serve` + check firewall |
-| Vision model error | `ollama pull qwen3-vl:2b` |
+| Model not found | `ollama pull gemma3:4b` |
 | OCR not working | Start backend on port 3000 |
 | Translation failing | Start `translator_service.py` on 3001 |
 

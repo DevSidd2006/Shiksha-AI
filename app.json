@@ -13,7 +13,11 @@
       "bundleIdentifier": "com.shiksha.ai"
     },
     "android": {
-      "package": "com.shiksha.ai"
+      "package": "com.shiksha.ai",
+      "navigationBar": {
+        "visible": "hidden",
+        "behavior": "sticky-immersive"
+      }
     },
     "scheme": "shikshaai",
     "extra": {
