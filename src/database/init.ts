@@ -5,6 +5,28 @@ const db = SQLite.openDatabaseSync('shiksha_ai.db');
 const DEFAULT_USER_ID = 'student_default';
 const DEFAULT_SETTINGS_ID = 'settings_default';
 
+const ensureModelsTableSchema = async () => {
+  const columns = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(models)`);
+  const existing = new Set(columns.map((c) => c.name));
+
+  const migrations: Array<{ name: string; sql: string }> = [
+    { name: 'localPath', sql: `ALTER TABLE models ADD COLUMN localPath TEXT` },
+    { name: 'remoteUrl', sql: `ALTER TABLE models ADD COLUMN remoteUrl TEXT` },
+    { name: 'size', sql: `ALTER TABLE models ADD COLUMN size TEXT` },
+    { name: 'status', sql: `ALTER TABLE models ADD COLUMN status TEXT DEFAULT 'not-downloaded'` },
+    { name: 'isDefault', sql: `ALTER TABLE models ADD COLUMN isDefault INTEGER DEFAULT 0` },
+    { name: 'type', sql: `ALTER TABLE models ADD COLUMN type TEXT DEFAULT 'gguf'` },
+    { name: 'ollamaModel', sql: `ALTER TABLE models ADD COLUMN ollamaModel TEXT` },
+    { name: 'createdAt', sql: `ALTER TABLE models ADD COLUMN createdAt DATETIME DEFAULT CURRENT_TIMESTAMP` },
+  ];
+
+  for (const migration of migrations) {
+    if (!existing.has(migration.name)) {
+      await db.execAsync(migration.sql);
+    }
+  }
+};
+
 export const initializeDatabase = async () => {
   try {
     // Create tables if they don't exist
@@ -139,6 +161,8 @@ export const initializeDatabase = async () => {
       CREATE INDEX IF NOT EXISTS idx_sync_queue_synced ON sync_queue(synced);
       CREATE INDEX IF NOT EXISTS idx_sync_queue_createdAt ON sync_queue(createdAt);
     `);
+
+    await ensureModelsTableSchema();
 
     // Seed default offline user/settings used by local-only mode.
     await db.runAsync(

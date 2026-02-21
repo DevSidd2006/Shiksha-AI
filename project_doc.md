@@ -305,8 +305,9 @@ TRANSLATOR_SERVICE_URL=http://localhost:3001
 - Ollama (if using backend AI endpoints)
 
 ### 11.2 Install Dependencies
+If you encounter peer dependency conflicts (e.g., React version mismatches), use the legacy flag:
 ```bash
-npm install
+npm install --legacy-peer-deps
 cd backend && npm install && cd ..
 ```
 
@@ -316,13 +317,24 @@ cd backend
 node server.js
 ```
 
-### 11.4 Build Native Android App
+### 11.4 Build Native Android App (Local)
+Ensure you have the Android SDK installed and `ANDROID_HOME` (or `ANDROID_SDK_ROOT`) set in your environment variables. `adb` must also be available in your `PATH`.
 ```bash
-cd ..
 npx expo run:android
 ```
 
-### 11.5 Start Metro (offline-safe)
+### 11.5 Build Standalone APK (EAS)
+To build a standalone APK without a local Android toolchain, use Expo Application Services:
+```bash
+npx eas build -p android --profile preview
+```
+**Troubleshooting Project Access**: If you see "Project ID not accessible", ensure you are logged into the correct account:
+```bash
+npx eas logout
+npx eas login
+```
+
+### 11.6 Start Metro (offline-safe)
 ```bash
 EXPO_OFFLINE=1 EXPO_NO_DEPENDENCY_VALIDATION=1 npx expo start --dev-client --offline
 ```
@@ -361,18 +373,30 @@ EXPO_OFFLINE=1 EXPO_NO_DEPENDENCY_VALIDATION=1 npx expo start --dev-client --off
 
 ---
 
-## 15. Suggested Next Technical Improvements
+## 15. Native Troubleshooting and Technical Notes
 
-1. Complete migration of profile/auth to SQLite or secure storage strategy.
-2. Add automated tests for:
-   - Chat store SQLite behavior
-   - Speech service events
-   - OCR/vision API contracts
-3. Add backend auth/rate limiting and structured logging.
-4. Add robust model-management UI for downloading/verifying local GGUF models.
-5. Add CI pipeline for lint/type checks + Android debug build.
+### 15.1 Model Download (Kotlin Bridge Error)
+Users might encounter a `downloadResumableStartAsync: Cannot convert 'null' to a Kotlin type` error on some Android versions.
+- **Root Cause**: Expo's `createDownloadResumable` can fail in the JNI bridge if parameters like headers are not explicitly provided.
+- **Fix**: Use `FileSystem.downloadAsync` with explicit `{ headers: {} }`. This bypasses the resumable session state and directly downloads the GGUF file reliably.
+
+### 15.2 ADB and Android SDK
+Local builds via `npx expo run:android` require:
+- `ANDROID_HOME` pointing to your SDK folder.
+- `platform-tools` (containing `adb`) added to your `PATH`.
+- A running emulator or connected device in `developer mode`.
 
 ---
 
-## 16. Evaluation Summary
+## 16. Recent Improvements
+
+1. **Model Management UI**: Implemented `app/model-manager.tsx`.
+   - Users can now browse, download, and delete local GGUF models.
+   - On first-time app launch, users are redirected to this manager if no local model is detected.
+2. **Offline Flow**: Integrated `hasDownloadedModel()` into the startup `index.tsx` to ensure the app is "ready for offline" before user interacts.
+3. **Database Expansion**: Added a `models` table to manage local LLM files and their storage paths.
+
+---
+
+## 17. Evaluation Summary
 Shiksha AI demonstrates a practical offline-first tutoring architecture with multimodal features (text, OCR, vision, math) and native Android integrations (STT + LLM bridge). The project is technically ambitious and functionally broad, with clear real-world educational relevance. The next step to production readiness is stability hardening (type consistency, test coverage, and security controls).

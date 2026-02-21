@@ -38,8 +38,9 @@
     "scheme": "shikshaai",
     "extra": {
       "eas": {
-        "projectId": "892dbdc9-a5ef-4743-af5a-41045790dff1"
+        "projectId": "9bc878c1-7abd-443e-875c-57c591de70b3"
       }
-    }
+    },
+    "owner": "devsidd2006"
   }
 }

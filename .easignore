@@ -1,0 +1,16 @@
+node_modules/
+android/app/build/
+android/.gradle/
+.expo/
+dist/
+web-build/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+.env
+backend/.env
+# Large llama sources that are already compiled or handled by CMake
+# android/app/src/main/cpp/llama.cpp/build/

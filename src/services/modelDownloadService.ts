@@ -7,71 +7,62 @@ export interface Model {
   localPath: string | null;
   remoteUrl: string;
   size: string;
-  status: 'not-downloaded' | 'downloading' | 'downloaded' | 'error' | 'ollama';
+  status: 'not-downloaded' | 'downloading' | 'downloaded' | 'error';
   isDefault: boolean;
-  type?: 'gguf' | 'ollama';
-  ollamaModel?: string;
 }
-
-export type ModelType = 'gguf' | 'ollama';
 
 const PRESET_MODELS: Model[] = [
   {
-    id: 'llama-3.2-1b-q8',
-    name: 'Llama 3.2 (1B) - Q8',
-    localPath: null,
-    remoteUrl: 'https://huggingface.co/hugging-quants/Llama-3.2-1B-Instruct-Q8_0-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q8_0.gguf',
-    size: '1.3 GB',
-    status: 'not-downloaded',
-    isDefault: false,
-    type: 'gguf',
-  },
-  {
     id: 'qwen-2.5-1.5b-q4',
-    name: 'Qwen 2.5 (1.5B) - Q4',
+    name: 'Qwen 2.5 (1.5B) - Q4 (Recommended)',
     localPath: null,
     remoteUrl: 'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf',
     size: '1.1 GB',
     status: 'not-downloaded',
     isDefault: true,
-    type: 'gguf',
   },
   {
-    id: 'ollama-qwen-1.5b',
-    name: 'Ollama: Qwen 2.5 (1.5B)',
+    id: 'llama-3.2-1b-q4',
+    name: 'Llama 3.2 (1B) - Q4 (Fast)',
     localPath: null,
-    remoteUrl: '',
-    size: '~1 GB',
-    status: 'ollama',
+    remoteUrl: 'https://huggingface.co/lmstudio-community/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct-Q4_K_M.gguf',
+    size: '800 MB',
+    status: 'not-downloaded',
     isDefault: false,
-    type: 'ollama',
-    ollamaModel: 'hf.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M',
-  },
-  {
-    id: 'ollama-llama-1b',
-    name: 'Ollama: Llama 3.2 (1B)',
-    localPath: null,
-    remoteUrl: '',
-    size: '~800 MB',
-    status: 'ollama',
-    isDefault: false,
-    type: 'ollama',
-    ollamaModel: 'hf.co/lmstudio-community/Llama-3.2-1B-Instruct-GGUF:Q4_K_M',
   },
 ];
 
 const ACTIVE_MODEL_KEY = 'active_model_id';
 
 async function ensureSeededModels(): Promise<void> {
-  const result = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM models');
-  const count = result?.count || 0;
+  const allowedIds = PRESET_MODELS.map((m) => m.id);
+  await db.runAsync(
+    `DELETE FROM models
+     WHERE id NOT IN (${allowedIds.map(() => '?').join(',')})`,
+    allowedIds
+  );
 
-  if (count > 0) return;
+  // Remove stale legacy entries (for example old ollama rows) that cannot be downloaded
+  // and are not backed by a local model file.
+  await db.runAsync(
+    `DELETE FROM models
+     WHERE (remoteUrl IS NULL OR remoteUrl = '')
+       AND (localPath IS NULL OR localPath = '')`
+  );
 
   for (const model of PRESET_MODELS) {
     await db.runAsync(
-      'INSERT INTO models (id, name, remoteUrl, size, status, isDefault, type, ollamaModel) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [model.id, model.name, model.remoteUrl, model.size, model.status, model.isDefault ? 1 : 0, model.type || 'gguf', model.ollamaModel || null]
+      `INSERT OR IGNORE INTO models (id, name, remoteUrl, size, status, isDefault)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [model.id, model.name, model.remoteUrl, model.size, model.status, model.isDefault ? 1 : 0]
+    );
+
+    // Keep seeded models up to date after app updates.
+    await db.runAsync(
+      `UPDATE models
+       SET name = ?, remoteUrl = ?, size = ?, isDefault = ?
+       WHERE id = ?`,
+      [model.name, model.remoteUrl, model.size, model.isDefault ? 1 : 0, model.id]
     );
   }
 }
@@ -79,7 +70,7 @@ async function ensureSeededModels(): Promise<void> {
 async function getDownloadedModelsInternal(): Promise<Model[]> {
   await ensureSeededModels();
   return db.getAllAsync<Model>(
-    'SELECT * FROM models WHERE (status = "downloaded" AND localPath IS NOT NULL) OR status = "ollama" ORDER BY isDefault DESC, createdAt ASC'
+    'SELECT * FROM models WHERE status = "downloaded" AND localPath IS NOT NULL ORDER BY isDefault DESC, createdAt ASC'
   );
 }
 
@@ -94,15 +85,20 @@ async function pickFallbackActiveModelId(): Promise<string | null> {
 export const hasDownloadedModel = async (): Promise<boolean> => {
   await ensureSeededModels();
   const result = await db.getFirstAsync<{ count: number }>(
-    'SELECT COUNT(*) as count FROM models WHERE (status = "downloaded" AND localPath IS NOT NULL) OR status = "ollama"'
+    'SELECT COUNT(*) as count FROM models WHERE status = "downloaded" AND localPath IS NOT NULL'
   );
   return (result?.count || 0) > 0;
 };
 
 export const getModels = async (): Promise<Model[]> => {
   await ensureSeededModels();
-  const result = await db.getAllAsync<Model>('SELECT * FROM models');
-  return result;
+  const models = await db.getAllAsync<Model>(
+    `SELECT * FROM models
+     WHERE (remoteUrl IS NOT NULL AND remoteUrl != '')
+        OR (status = 'downloaded' AND localPath IS NOT NULL AND localPath != '')
+     ORDER BY isDefault DESC, createdAt ASC`
+  );
+  return models;
 };
 
 export const getActiveModel = async (): Promise<Model | null> => {
@@ -115,7 +111,7 @@ export const getActiveModel = async (): Promise<Model | null> => {
 
   if (activeRow?.value) {
     const byId = await db.getFirstAsync<Model>(
-      'SELECT * FROM models WHERE id = ? AND ((status = "downloaded" AND localPath IS NOT NULL) OR status = "ollama")',
+      'SELECT * FROM models WHERE id = ? AND status = "downloaded" AND localPath IS NOT NULL',
       [activeRow.value]
     );
     if (byId) return byId;
@@ -161,28 +157,71 @@ export const setActiveModel = async (modelId: string): Promise<Model> => {
 
 export const downloadModel = async (modelId: string, onProgress: (p: number) => void): Promise<string> => {
   await ensureSeededModels();
-  const model = await db.getFirstAsync<Model>('SELECT * FROM models WHERE id = ?', [modelId]);
+  let model = await db.getFirstAsync<Model>('SELECT * FROM models WHERE id = ?', [modelId]);
   if (!model) throw new Error('Model not found');
 
-  const filename = `${model.id}.gguf`;
-  const fileUri = `${FileSystem.documentDirectory}${filename}`;
+  // Self-heal stale local DB rows by restoring preset URL metadata.
+  if (!model.remoteUrl) {
+    const preset = PRESET_MODELS.find((m) => m.id === modelId);
+    if (preset?.remoteUrl) {
+      await db.runAsync(
+        'UPDATE models SET remoteUrl = ?, name = ?, size = ? WHERE id = ?',
+        [preset.remoteUrl, preset.name, preset.size, modelId]
+      );
+      model = await db.getFirstAsync<Model>('SELECT * FROM models WHERE id = ?', [modelId]);
+    }
+  }
 
-  // Update status to downloading
+  if (!model?.remoteUrl) {
+    throw new Error('Model URL is missing. Refresh model list or reinstall app data once.');
+  }
+  const baseDir = (FileSystem as any).documentDirectory as string | null;
+  if (!baseDir) throw new Error('Device storage is not accessible');
+
+  const filename = `${model.id}.gguf`;
+  const fileUri = `${baseDir}${filename}`;
+
+  // Clean up any partial/corrupt file from a previous failed attempt
+  try {
+    const info = await FileSystem.getInfoAsync(fileUri);
+    if (info.exists) {
+      await FileSystem.deleteAsync(fileUri, { idempotent: true });
+    }
+  } catch {
+    // Ignore — file may not exist
+  }
+
   await db.runAsync('UPDATE models SET status = ? WHERE id = ?', ['downloading', modelId]);
 
-  const downloadResumable = FileSystem.createDownloadResumable(
-    model.remoteUrl,
-    fileUri,
-    {},
-    (downloadProgress) => {
-      const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
-      onProgress(progress);
-    }
-  );
-
   try {
+    onProgress(0);
+
+    // Use createDownloadResumable for real-time progress on large model files.
+    // IMPORTANT: We never call savable() or pass resumeData to avoid the
+    // Android/Kotlin "Cannot convert 'null' to a Kotlin type" crash.
+    const downloadResumable = FileSystem.createDownloadResumable(
+      model.remoteUrl,
+      fileUri,
+      { md5: false },
+      (downloadProgress) => {
+        if (downloadProgress.totalBytesExpectedToWrite > 0) {
+          const progress = downloadProgress.totalBytesWritten / downloadProgress.totalBytesExpectedToWrite;
+          onProgress(Math.min(progress, 0.99)); // Reserve 1.0 for verification
+        }
+      }
+    );
+
     const downloadResult = await downloadResumable.downloadAsync();
-    if (downloadResult) {
+
+    // Verify the downloaded file exists and has content
+    if (downloadResult && downloadResult.uri) {
+      const fileInfo = await FileSystem.getInfoAsync(downloadResult.uri);
+      if (!fileInfo.exists) {
+        throw new Error('Download completed but file not found on disk.');
+      }
+
+      onProgress(1);
+
       await db.runAsync(
         'UPDATE models SET status = ?, localPath = ? WHERE id = ?',
         ['downloaded', downloadResult.uri, modelId]
@@ -190,9 +229,16 @@ export const downloadModel = async (modelId: string, onProgress: (p: number) => 
       await setActiveModel(modelId);
       return downloadResult.uri;
     }
-    throw new Error('Download failed');
+    throw new Error('Download failed: No result returned from device.');
   } catch (e) {
+    // Clean up partial file on failure
+    try {
+      await FileSystem.deleteAsync(fileUri, { idempotent: true });
+    } catch {
+      // Ignore cleanup errors
+    }
     await db.runAsync('UPDATE models SET status = ? WHERE id = ?', ['error', modelId]);
+    console.error('Download error details:', e);
     throw e;
   }
 };

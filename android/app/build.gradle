@@ -103,7 +103,9 @@ android {
             }
         }
         ndk {
-            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+            // Only arm64-v8a: llama.cpp uses FP16 NEON intrinsics unavailable on armv7,
+            // and x86/x86_64 are emulator-only targets not needed for production.
+            abiFilters 'arm64-v8a'
         }
     }
     signingConfigs {

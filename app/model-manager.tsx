@@ -6,8 +6,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Spacing, BorderRadius, Fonts, Shadows } from '@/styles/designSystem';
 import { getModels, downloadModel, deleteModelFile, Model, hasDownloadedModel, getActiveModel, setActiveModel } from '@/services/modelDownloadService';
 import { llamaBridge } from '@/services/nativeLlama';
-import { setOfflineModelPath, setOllamaModel } from '@/services/offlineTutor';
+import { setOfflineModelPath } from '@/services/offlineTutor';
 import { useRouter } from 'expo-router';
+import { initializeDatabase } from '@/database/init';
 
 export default function ModelManagerScreen() {
   const router = useRouter();
@@ -16,12 +17,21 @@ export default function ModelManagerScreen() {
   const [progress, setProgress] = useState(0);
   const [isFirstTime, setIsFirstTime] = useState(false);
   const [activeModelId, setActiveModelId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      const ready = await hasDownloadedModel();
-      setIsFirstTime(!ready);
-      loadModels();
+      try {
+        await initializeDatabase();
+        const ready = await hasDownloadedModel();
+        setIsFirstTime(!ready);
+        await loadModels();
+      } catch (error) {
+        console.error('Model setup initialization failed:', error);
+        Alert.alert('Error', 'Failed to load models. Please restart the app.');
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
 
@@ -78,27 +88,19 @@ export default function ModelManagerScreen() {
   };
 
   const handleApply = async (model: Model) => {
-    if (model.type === 'ollama') {
-      await setActiveModel(model.id);
-      setOllamaModel(model.ollamaModel || null);
-      setActiveModelId(model.id);
-      Alert.alert('Applied', `Using Ollama: ${model.name}\n\nMake sure Ollama is running on your device with:\nollama run ${model.ollamaModel}`);
-      return;
-    }
-
     if (model.status !== 'downloaded' || !model.localPath) {
       Alert.alert('Error', 'Please download the model first.');
       return;
     }
-    
+
     await setActiveModel(model.id);
     setOfflineModelPath(model.localPath);
     const success = await llamaBridge.ensure(model.localPath);
+    setActiveModelId(model.id);
+
     if (success) {
-      setActiveModelId(model.id);
       Alert.alert('Applied', `Using local model: ${model.name}`);
     } else {
-      setActiveModelId(model.id);
       Alert.alert('Applied', `Model selected: ${model.name}. Native runtime will initialize on supported standalone builds.`);
     }
   };
@@ -106,22 +108,18 @@ export default function ModelManagerScreen() {
   const renderItem = ({ item }: { item: Model }) => (
     <View style={styles.modelCard}>
       <View style={styles.modelRow}>
-        <View style={[styles.iconContainer, item.type === 'ollama' && styles.ollamaIcon]}>
-          <MaterialIcons name={item.type === 'ollama' ? "dns" : "memory"} size={32} color={item.type === 'ollama' ? Colors.secondary : Colors.primary} />
+        <View style={styles.iconContainer}>
+          <MaterialIcons name="memory" size={32} color={Colors.primary} />
         </View>
         <View style={styles.modelInfo}>
           <Text style={styles.modelName}>{item.name}</Text>
           <Text style={styles.modelSize}>{item.size}</Text>
-          {((item.status === 'downloaded' || item.status === 'ollama') && activeModelId === item.id) && (
-            <Text style={styles.activeTag}>{item.type === 'ollama' ? 'Ollama ready' : 'Active on device'}</Text>
+          {item.status === 'downloaded' && activeModelId === item.id && (
+            <Text style={styles.activeTag}>Active on device</Text>
           )}
         </View>
-        
-        {item.type === 'ollama' ? (
-          <TouchableOpacity onPress={() => handleApply(item)} style={styles.applyButton}>
-            <Text style={styles.applyText}>Use</Text>
-          </TouchableOpacity>
-        ) : item.status === 'downloaded' ? (
+
+        {item.status === 'downloaded' ? (
           <View style={styles.actionColumn}>
              <TouchableOpacity onPress={() => handleApply(item)} style={styles.applyButton}>
                <Text style={styles.applyText}>Use</Text>
@@ -186,7 +184,16 @@ export default function ModelManagerScreen() {
         keyExtractor={(item) => item.id}
         renderItem={renderItem}
         contentContainerStyle={styles.listContent}
-        ListEmptyComponent={<ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 100 }} />}
+        ListEmptyComponent={
+          loading ? (
+            <ActivityIndicator size="large" color={Colors.primary} style={{ marginTop: 100 }} />
+          ) : (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>No models found</Text>
+              <Text style={styles.emptySubtitle}>Please restart the app once and try again.</Text>
+            </View>
+          )
+        }
       />
     </SafeAreaView>
   );
@@ -255,9 +262,6 @@ const styles = StyleSheet.create({
     padding: Spacing.sm,
     backgroundColor: '#EEF2FF',
     borderRadius: BorderRadius.md,
-  },
-  ollamaIcon: {
-    backgroundColor: '#F0FDF4',
   },
   modelInfo: {
     flex: 1,
@@ -329,5 +333,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textSecondary,
     marginTop: 2,
+  },
+  emptyState: {
+    marginTop: 100,
+    alignItems: 'center',
+  },
+  emptyTitle: {
+    fontSize: 16,
+    color: Colors.textPrimary,
+    fontFamily: Fonts.bold,
+  },
+  emptySubtitle: {
+    marginTop: Spacing.sm,
+    fontSize: 13,
+    color: Colors.textSecondary,
   },
 });
