@@ -85,7 +85,7 @@ export default function ProfileScreen() {
               </TouchableOpacity>
             </View>
             <Text style={styles.userName}>{profile?.name || 'Student'}</Text>
-            <Text style={styles.userGrade}>{profile?.grade || 'Class 9'}</Text>
+            <Text style={styles.userGrade}>{profile?.grade || 'Class 8'}</Text>
           </View>
         </LinearGradient>
 

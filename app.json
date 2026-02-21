@@ -10,15 +10,31 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.shiksha.ai"
+      "bundleIdentifier": "com.shiksha.ai",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Shiksha AI uses your camera to scan questions, notes, and math problems.",
+        "NSMicrophoneUsageDescription": "Shiksha AI uses your microphone for voice input in AI chat.",
+        "NSSpeechRecognitionUsageDescription": "Shiksha AI converts your speech to text for chat input."
+      }
     },
     "android": {
       "package": "com.shiksha.ai",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO"
+      ],
       "navigationBar": {
         "visible": "hidden",
         "behavior": "sticky-immersive"
       }
     },
+    "plugins": [
+      "expo-dev-client"
+    ],
     "scheme": "shikshaai",
     "extra": {
       "eas": {

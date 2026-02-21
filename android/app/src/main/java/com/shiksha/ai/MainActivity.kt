@@ -1,4 +1,4 @@
-package com.siksha.ai
+package com.shiksha.ai
 
 import android.os.Build
 import android.os.Bundle

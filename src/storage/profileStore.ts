@@ -5,7 +5,7 @@ const PROFILE_KEY = '@shiksha_student_profile';
 export interface StudentProfile {
   id: string;
   name: string;
-  grade: string; // Class 5-9
+  grade: string; // Class 8-10
   age: number;
   school?: string;
   email?: string;
@@ -26,12 +26,14 @@ export interface StudentProfile {
   };
 }
 
+export const CLASS_OPTIONS = ['Class 8', 'Class 9', 'Class 10'];
+
 // Default profile for new users
 const DEFAULT_PROFILE: StudentProfile = {
   id: Date.now().toString(),
   name: 'Student',
-  grade: 'Class 5-9',
-  age: 12,
+  grade: 'Class 8',
+  age: 13,
   school: '',
   email: '',
   favoriteSubjects: ['Math', 'Science'],
@@ -212,6 +214,23 @@ export async function updateWeeklyGoal(minutes: number): Promise<void> {
     await updateProfile(profile);
   } catch (error) {
     console.error('Error updating weekly goal:', error);
+    throw error;
+  }
+}
+
+/**
+ * Update student grade (Class 8-10)
+ */
+export async function updateGrade(grade: string): Promise<void> {
+  try {
+    if (!CLASS_OPTIONS.includes(grade)) {
+      throw new Error('Invalid grade. Must be Class 8, 9, or 10');
+    }
+    const profile = await getProfile();
+    profile.grade = grade;
+    await updateProfile(profile);
+  } catch (error) {
+    console.error('Error updating grade:', error);
     throw error;
   }
 }

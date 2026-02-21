@@ -34,6 +34,20 @@ interface Chapter {
   title: string;
 }
 
+interface NotePoint {
+  id: string;
+  title: string;
+  content: string;
+  category: string;
+  icon: string;
+}
+
+interface ChapterData {
+  chapterTitle: string;
+  introduction: string;
+  points: NotePoint[];
+}
+
 export default function NotesScreen() {
   const [selectedChapter, setSelectedChapter] = useState<number | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -92,7 +106,7 @@ export default function NotesScreen() {
     );
   }
 
-  const chapterData = getChapterNotes(selectedChapter);
+  const chapterData = getChapterNotes(selectedChapter) as ChapterData | undefined;
 
   if (!chapterData) {
     return (
@@ -103,7 +117,7 @@ export default function NotesScreen() {
   }
 
   const filteredPoints = selectedCategory
-    ? chapterData.points.filter(p => p.category === selectedCategory)
+    ? chapterData.points.filter((p: NotePoint) => p.category === selectedCategory)
     : chapterData.points;
 
   return (
@@ -171,7 +185,7 @@ export default function NotesScreen() {
             {selectedCategory ? `${selectedCategory} (${filteredPoints.length})` : `ALL POINTS (${chapterData.points.length})`}
           </Text>
 
-          {filteredPoints.map((point, index) => (
+          {filteredPoints.map((point: NotePoint) => (
             <View key={point.id} style={styles.pointCard}>
               <View style={styles.pointHeader}>
                 <View style={styles.pointIconCircle}>

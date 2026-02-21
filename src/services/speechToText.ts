@@ -1,14 +1,18 @@
 import * as Speech from 'expo-speech';
-import { Alert, Platform } from 'react-native';
+import {
+  Alert,
+  NativeEventEmitter,
+  NativeModules,
+  PermissionsAndroid,
+  Platform,
+} from 'react-native';
 
-// Types
 export interface SpeechRecognitionState {
   isListening: boolean;
   transcript: string;
   error: string | null;
 }
 
-// Indian Languages Configuration
 export const INDIAN_LANGUAGES = {
   HINDI: { code: 'hi-IN', name: 'हिंदी (Hindi)', nativeName: 'Hindi' },
   TAMIL: { code: 'ta-IN', name: 'தமிழ் (Tamil)', nativeName: 'Tamil' },
@@ -26,47 +30,45 @@ export const INDIAN_LANGUAGES = {
   ENGLISH_US: { code: 'en-US', name: 'English (US)', nativeName: 'English' },
 };
 
-export const LANGUAGE_CODES = [
-  'hi-IN',  // Hindi
-  'ta-IN',  // Tamil
-  'te-IN',  // Telugu
-  'kn-IN',  // Kannada
-  'ml-IN',  // Malayalam
-  'mr-IN',  // Marathi
-  'gu-IN',  // Gujarati
-  'pa-IN',  // Punjabi
-  'bn-IN',  // Bengali
-  'or-IN',  // Odia
-  'as-IN',  // Assamese
-  'ur-IN',  // Urdu
-  'en-IN',  // English (India)
-  'en-US',  // English (US)
-];
+export const LANGUAGE_CODES = Object.values(INDIAN_LANGUAGES).map((l) => l.code);
 
-// Speech-to-text service using device's native speech recognition
-// Uses Web Speech API on web, native APIs on Android/iOS
+type NativeSpeechModule = {
+  isAvailable: () => Promise<boolean>;
+  startListening: (language: string) => Promise<boolean>;
+  stopListening: () => Promise<boolean>;
+  destroy: () => Promise<boolean>;
+};
+
+const NativeSpeech = NativeModules.NativeSpeechToText as NativeSpeechModule | undefined;
+const EVENT_RESULT = 'NativeSpeechToTextResult';
+const EVENT_ERROR = 'NativeSpeechToTextError';
+const EVENT_END = 'NativeSpeechToTextEnd';
 
 export class SpeechToTextService {
   private static isListening = false;
   private static transcript = '';
+  private static selectedLanguage = 'hi-IN';
+  private static webRecognition: any = null;
 
   static async startListening(
     onTranscript: (text: string) => void,
-    onError: (error: string) => void,
+    onError: (error: string) => void
   ): Promise<void> {
     try {
-      // Check if platform supports speech recognition
       if (Platform.OS === 'web') {
         await this.startWebSpeechRecognition(onTranscript, onError);
-      } else {
-        // For mobile, we'll use a workaround with native modules
-        // Note: React Native doesn't have built-in speech-to-text in Expo
-        // Alternative: use community package or fallback to text input
-        Alert.alert(
-          'Speech Input',
-          'Native speech-to-text is not yet available on mobile. Please use text input or web browser.',
-        );
+        return;
       }
+
+      if (Platform.OS === 'android' && NativeSpeech) {
+        await this.startAndroidNativeSpeechRecognition(onTranscript, onError);
+        return;
+      }
+
+      Alert.alert(
+        'Speech Input',
+        'Native speech-to-text is currently available on Android in this build.'
+      );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       onError(errorMessage);
@@ -74,15 +76,82 @@ export class SpeechToTextService {
     }
   }
 
-  static stopListening(): void {
+  static async stopListening(): Promise<void> {
     this.isListening = false;
     if (Platform.OS === 'web') {
       this.stopWebSpeechRecognition();
+      return;
+    }
+
+    if (Platform.OS === 'android' && NativeSpeech) {
+      try {
+        await NativeSpeech.stopListening();
+      } catch (error) {
+        console.error('Error stopping native speech recognition:', error);
+      }
     }
   }
 
-  // Web Speech API Implementation
-  private static webRecognition: any = null;
+  private static async startAndroidNativeSpeechRecognition(
+    onTranscript: (text: string) => void,
+    onError: (error: string) => void
+  ): Promise<void> {
+    const granted = await this.ensureAndroidMicPermission();
+    if (!granted) {
+      onError('Microphone permission denied');
+      return;
+    }
+
+    const available = await NativeSpeech!.isAvailable();
+    if (!available) {
+      onError('Speech recognition is not available on this Android device.');
+      return;
+    }
+
+    this.isListening = true;
+    this.transcript = '';
+
+    const emitter = new NativeEventEmitter(NativeModules.NativeSpeechToText);
+    const resultSub = emitter.addListener(EVENT_RESULT, (payload: any) => {
+      const text = payload?.text || '';
+      if (!text) return;
+      this.transcript = text;
+      onTranscript(text);
+    });
+    const errorSub = emitter.addListener(EVENT_ERROR, (payload: any) => {
+      const message = payload?.message || 'Speech recognition failed.';
+      onError(message);
+    });
+
+    await NativeSpeech!.startListening(this.selectedLanguage);
+
+    await new Promise<void>((resolve) => {
+      const endSub = emitter.addListener(EVENT_END, () => {
+        this.isListening = false;
+        endSub.remove();
+        resolve();
+      });
+    });
+
+    resultSub.remove();
+    errorSub.remove();
+  }
+
+  private static async ensureAndroidMicPermission(): Promise<boolean> {
+    if (Platform.OS !== 'android') return false;
+    const permission = PermissionsAndroid.PERMISSIONS.RECORD_AUDIO;
+    const hasPermission = await PermissionsAndroid.check(permission);
+    if (hasPermission) return true;
+
+    const result = await PermissionsAndroid.request(permission, {
+      title: 'Microphone Permission',
+      message: 'Shiksha AI needs microphone access for speech-to-text in chat.',
+      buttonPositive: 'Allow',
+      buttonNegative: 'Deny',
+    });
+
+    return result === PermissionsAndroid.RESULTS.GRANTED;
+  }
 
   private static initWebSpeechRecognition(): any {
     if (typeof window === 'undefined') return null;
@@ -91,20 +160,15 @@ export class SpeechToTextService {
       (window as any).SpeechRecognition ||
       (window as any).webkitSpeechRecognition;
 
-    if (!SpeechRecognition) {
-      console.warn('Web Speech API is not supported in this browser');
-      return null;
-    }
-
+    if (!SpeechRecognition) return null;
     return new SpeechRecognition();
   }
 
   private static async startWebSpeechRecognition(
     onTranscript: (text: string) => void,
-    onError: (error: string) => void,
+    onError: (error: string) => void
   ): Promise<void> {
     const recognition = this.initWebSpeechRecognition();
-
     if (!recognition) {
       onError('Speech Recognition API not supported');
       return;
@@ -114,117 +178,94 @@ export class SpeechToTextService {
     this.isListening = true;
     this.transcript = '';
 
-    // Configuration
     recognition.continuous = false;
     recognition.interimResults = true;
-    recognition.language = 'hi-IN';  // Default to Hindi, can be changed via settings
-
-    // Event handlers
-    recognition.onstart = () => {
-      console.log('Speech recognition started');
-      this.isListening = true;
-    };
+    recognition.language = this.selectedLanguage;
 
     recognition.onresult = (event: any) => {
       let interimTranscript = '';
-
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcript = event.results[i][0].transcript;
-
         if (event.results[i].isFinal) {
           this.transcript += transcript + ' ';
         } else {
           interimTranscript += transcript;
         }
       }
-
-      // Send interim results for real-time feedback
-      const fullTranscript = this.transcript + interimTranscript;
-      onTranscript(fullTranscript.trim());
+      onTranscript((this.transcript + interimTranscript).trim());
     };
 
     recognition.onerror = (event: any) => {
-      console.error('Speech recognition error:', event.error);
-      onError(`Speech recognition error: ${event.error}`);
       this.isListening = false;
+      onError(`Speech recognition error: ${event.error}`);
     };
 
     recognition.onend = () => {
-      console.log('Speech recognition ended');
       this.isListening = false;
-      // Final transcript
       if (this.transcript.trim()) {
         onTranscript(this.transcript.trim());
       }
     };
 
-    // Start listening
     recognition.start();
   }
 
   private static stopWebSpeechRecognition(): void {
-    if (this.webRecognition) {
-      this.webRecognition.stop();
-      this.webRecognition = null;
-    }
+    if (!this.webRecognition) return;
+    this.webRecognition.stop();
+    this.webRecognition = null;
   }
 
   static isSupported(): boolean {
+    if (Platform.OS === 'android') {
+      return !!NativeSpeech;
+    }
     if (Platform.OS === 'web') {
       if (typeof window === 'undefined') return false;
-      const SpeechRecognition =
-        (window as any).SpeechRecognition ||
-        (window as any).webkitSpeechRecognition;
-      return !!SpeechRecognition;
+      return !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
     }
-    // Mobile support would require community packages
     return false;
   }
 
-  // Text-to-Speech (for AI responses) - Supports Hindi and English
   static async speak(text: string, language: string = 'en-IN', onDone?: () => void): Promise<void> {
     try {
-      // Map language names to language codes
       const languageMap: { [key: string]: string } = {
-        'English': 'en-IN',
+        English: 'en-IN',
         'en-IN': 'en-IN',
         'en-US': 'en-US',
-        'Hindi': 'hi-IN',
+        Hindi: 'hi-IN',
         'hi-IN': 'hi-IN',
-        'Marathi': 'mr-IN',
+        Marathi: 'mr-IN',
         'mr-IN': 'mr-IN',
-        'Tamil': 'ta-IN',
+        Tamil: 'ta-IN',
         'ta-IN': 'ta-IN',
-        'Telugu': 'te-IN',
+        Telugu: 'te-IN',
         'te-IN': 'te-IN',
-        'Kannada': 'kn-IN',
+        Kannada: 'kn-IN',
         'kn-IN': 'kn-IN',
-        'Malayalam': 'ml-IN',
+        Malayalam: 'ml-IN',
         'ml-IN': 'ml-IN',
-        'Gujarati': 'gu-IN',
+        Gujarati: 'gu-IN',
         'gu-IN': 'gu-IN',
-        'Punjabi': 'pa-IN',
+        Punjabi: 'pa-IN',
         'pa-IN': 'pa-IN',
-        'Bengali': 'bn-IN',
+        Bengali: 'bn-IN',
         'bn-IN': 'bn-IN',
       };
 
       const languageCode = languageMap[language] || 'en-IN';
 
-      console.log(`🔊 Speaking in ${language} (${languageCode})`);
-
       await Speech.speak(text, {
         language: languageCode,
         pitch: 1.0,
-        rate: 0.9, // Slightly slower for clarity
-        onDone: onDone,
+        rate: 0.9,
+        onDone,
       });
     } catch (error) {
-      console.error('❌ Text-to-speech error:', error);
+      console.error('Text-to-speech error:', error);
     }
   }
 
-  // Speak with explicit language selection (Hindi or English)
   static async speakHindi(text: string, onDone?: () => void): Promise<void> {
     return this.speak(text, 'hi-IN', onDone);
   }
@@ -251,7 +292,7 @@ export class SpeechToTextService {
   }
 
   static setLanguage(language: string): void {
-    // This will be used to change the language dynamically
+    this.selectedLanguage = language;
     if (this.webRecognition) {
       this.webRecognition.language = language;
     }

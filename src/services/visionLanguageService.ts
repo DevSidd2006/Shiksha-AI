@@ -24,7 +24,7 @@ const getBackendUrl = () => {
 };
 
 export class VisionLanguageService {
-  private static readonly MODEL_NAME = 'gemma3:latest';
+  private static readonly MODEL_NAME = 'qwen2.5:1.5b';
   // Use host machine IP instead of localhost for React Native
   private static readonly OLLAMA_BASE_URL = __DEV__
     ? 'http://10.0.2.2:11434'  // Android emulator
@@ -43,7 +43,7 @@ export class VisionLanguageService {
    * Falls back to OCR + text LLM if vision model is unavailable
    */
   static async analyzeImage(imageUri: string, question: string): Promise<string> {
-    console.log('🔍 Processing with Gemma3 vision model...');
+    console.log('🔍 Processing with qwen2.5:1.5b vision model...');
     try {
       // Read image as base64
       const uri = imageUri.startsWith('file://') ? imageUri : `file://${imageUri}`;
@@ -90,10 +90,10 @@ export class VisionLanguageService {
    */
   private static visionModelChecked = false;
   private static visionModelAvailable = false;
-  
+
   private static async isVisionModelAvailable(): Promise<boolean> {
     if (this.visionModelChecked) return this.visionModelAvailable;
-    
+
     try {
       const result = await this.testConnection();
       this.visionModelAvailable = result.modelAvailable;
@@ -107,7 +107,7 @@ export class VisionLanguageService {
   }
 
   /**
-   * Process image with Qwen3-VL vision-language model
+   * Process image with qwen2.5:1.5b vision-language model
    * Can detect objects, read text, explain images, and answer questions about images
    */
   static async processImageWithQuestion(
@@ -117,7 +117,7 @@ export class VisionLanguageService {
     const startTime = Date.now();
 
     try {
-      console.log('Processing image with Qwen3-VL:2B...');
+      console.log('Processing image with qwen2.5:1.5b...');
 
       // Read image as base64 - ensure file:// prefix for Android
       const uri = imageUri.startsWith('file://') ? imageUri : `file://${imageUri}`;
@@ -281,11 +281,11 @@ export class VisionLanguageService {
   }
 
   /**
-   * Check if Qwen3-VL model is available
+   * Check if qwen2.5:1.5b model is available
    */
   static async isModelAvailable(): Promise<boolean> {
     try {
-      console.log('Checking if Qwen3-VL model is available...');
+      console.log('Checking if qwen2.5:1.5b model is available...');
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
 

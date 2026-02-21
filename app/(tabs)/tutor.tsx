@@ -39,6 +39,15 @@ import { SpotlightTutorial, SpotlightStep } from '@/components/SpotlightTutorial
 import { Colors, Fonts, Shadows, Spacing, BorderRadius } from '@/styles/designSystem';
 
 const { width } = Dimensions.get('window');
+const ExpoCameraModule: any = (() => {
+  try {
+    return require('expo-camera');
+  } catch {
+    return null;
+  }
+})();
+const CameraView = ExpoCameraModule?.CameraView;
+const requestNativeCameraPermissions = ExpoCameraModule?.Camera?.requestCameraPermissionsAsync;
 
 interface Message {
   id: string;
@@ -48,6 +57,7 @@ interface Message {
   imageUri?: string;
   extractedText?: string;
 }
+type CaptureTask = 'vision' | 'ocr' | 'math';
 
 const INDIGO_GRADIENT = ['#6366F1', '#4F46E5'];
 
@@ -70,8 +80,12 @@ export default function TutorScreen() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [currentTutorialStep, setCurrentTutorialStep] = useState(0);
   const [userName, setUserName] = useState('Student');
+  const [cameraTask, setCameraTask] = useState<CaptureTask | null>(null);
+  const [cameraFacing, setCameraFacing] = useState<'back' | 'front'>('back');
+  const [cameraBusy, setCameraBusy] = useState(false);
   
   const flatListRef = useRef<FlatList>(null);
+  const cameraRef = useRef<any>(null);
 
   useEffect(() => {
     loadInitialData();
@@ -149,7 +163,8 @@ export default function TutorScreen() {
       let responseText = '';
       
       if (offlineMode) {
-        responseText = await generateOfflineAnswer(text);
+        const response = await generateOfflineAnswer(text);
+        responseText = response.answer;
       } else {
         if (imageUri) {
           responseText = await VisionLanguageService.analyzeImage(imageUri, text || 'Explain this image');
@@ -177,228 +192,279 @@ export default function TutorScreen() {
     }
   };
 
-  const handleImagePick = async () => {
-    const source = await new Promise<'camera' | 'library' | null>((resolve) => {
-      Alert.alert(
-        'Upload Image',
-        'Choose a source',
-        [
-          { text: 'Camera', onPress: () => resolve('camera') },
-          { text: 'Gallery', onPress: () => resolve('library') },
-          { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
-        ]
-      );
+  const askSource = async (
+    title: string,
+    message: string
+  ): Promise<'camera' | 'library' | null> =>
+    new Promise((resolve) => {
+      Alert.alert(title, message, [
+        { text: 'Camera', onPress: () => resolve('camera') },
+        { text: 'Gallery', onPress: () => resolve('library') },
+        { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
+      ]);
     });
 
-    if (!source) return;
-
-    const { status } = source === 'camera' 
-      ? await ImagePicker.requestCameraPermissionsAsync()
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
-
+  const pickFromLibrary = async (): Promise<string | null> => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', `We need access to your ${source === 'camera' ? 'camera' : 'gallery'}.`);
+      Alert.alert('Permission needed', 'We need access to your gallery.');
+      return null;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.8,
+    });
+    return result.canceled ? null : result.assets[0].uri;
+  };
+
+  const openNativeCamera = async (task: CaptureTask): Promise<boolean> => {
+    if (!CameraView || !requestNativeCameraPermissions) {
+      return false;
+    }
+
+    const permission = await requestNativeCameraPermissions();
+    if (permission?.status !== 'granted') {
+      Alert.alert('Permission needed', 'We need camera access to capture images.');
+      return true;
+    }
+
+    setCameraTask(task);
+    return true;
+  };
+
+  const captureWithImagePickerCamera = async (): Promise<string | null> => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'We need camera access.');
+      return null;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      quality: 0.8,
+    });
+    return result.canceled ? null : result.assets[0].uri;
+  };
+
+  const processOcrImage = async (imageUri: string) => {
+    setLoading(true);
+    try {
+      const manipulated = await ImageManipulator.manipulateAsync(
+        imageUri,
+        [],
+        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+      );
+
+      const ocrResult = await OCRService.extractTextFromImage(manipulated.uri);
+      if (ocrResult.text) {
+        Alert.alert(
+          'Text Scanned',
+          'Would you like to optimize this text (fix OCR errors) using AI?',
+          [
+            {
+              text: 'Raw Text',
+              onPress: () => {
+                setInputText((prev) => (prev ? `${prev}\n\n${ocrResult.text}` : ocrResult.text));
+              },
+            },
+            {
+              text: 'Optimize with AI',
+              onPress: async () => {
+                setLoading(true);
+                try {
+                  const result = await processDocument(ocrResult.text, 'correct');
+                  setInputText((prev) => (prev ? `${prev}\n\n${result}` : result));
+                } finally {
+                  setLoading(false);
+                }
+              },
+            },
+          ]
+        );
+      } else {
+        Alert.alert('OCR Result', 'No text could be extracted. Try cropping closer to the text.');
+      }
+    } catch (error) {
+      console.error('OCR error:', error);
+      Alert.alert('Error', 'Failed to scan text. Make sure the text is clear and readable.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const processMathImage = async (imageUri: string) => {
+    setLoading(true);
+    try {
+      const manipulated = await ImageManipulator.manipulateAsync(
+        imageUri,
+        [],
+        { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
+      );
+
+      const ocrResult = await OCRService.extractTextFromImage(manipulated.uri);
+      const detection = detectMathExpression(ocrResult.text);
+
+      if (!detection) {
+        Alert.alert(
+          'Math not detected',
+          'We could not find a clear math expression in the image. Try cropping tighter around the equation and try again.'
+        );
+        return;
+      }
+
+      const solution = solveMathDetection(detection);
+      if (!solution) {
+        try {
+          const aiResponse = await sendQuestion(`Solve and explain this math problem Step-by-Step: ${ocrResult.text}`);
+          const userMsg: Message = {
+            id: Date.now().toString(),
+            text: 'Math problem from image (Algebraic)',
+            isUser: true,
+            timestamp: new Date(),
+            imageUri: manipulated.uri,
+            extractedText: ocrResult.text,
+          };
+          const aiMsg: Message = {
+            id: (Date.now() + 1).toString(),
+            text: aiResponse.answer,
+            isUser: false,
+            timestamp: new Date(),
+          };
+          const updatedMessages = [...messages, userMsg, aiMsg];
+          setMessages(updatedMessages);
+          await saveChat(updatedMessages);
+        } catch {
+          Alert.alert('Math error', 'The expression could not be evaluated automatically. Try a simpler expression or ask the AI tutor.');
+        }
+        return;
+      }
+
+      const userMessage: Message = {
+        id: Date.now().toString(),
+        text: 'Math problem from image',
+        isUser: true,
+        timestamp: new Date(),
+        imageUri: manipulated.uri,
+        extractedText: ocrResult.text,
+      };
+
+      const aiMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        text: `🧮 Math Solver\nProblem: ${detection.originalLine}\n${solution.explanation}\n${solution.answer}\n${solution.latex}`,
+        isUser: false,
+        timestamp: new Date(),
+      };
+
+      const updatedMessages = [...messages, userMessage, aiMessage];
+      setMessages(updatedMessages);
+      await saveChat(updatedMessages);
+    } catch (error) {
+      console.error('Math solve error:', error);
+      Alert.alert('Error', 'Failed to solve the math problem. Try again with a clearer image.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const routeCapturedImage = async (task: CaptureTask, imageUri: string) => {
+    if (task === 'vision') {
+      await handleSend('Please explain what is in this image:', imageUri);
+      return;
+    }
+    if (task === 'ocr') {
+      await processOcrImage(imageUri);
+      return;
+    }
+    await processMathImage(imageUri);
+  };
+
+  const handleImagePick = async () => {
+    const source = await askSource('Upload Image', 'Choose a source');
+    if (!source) return;
+    if (source === 'library') {
+      const uri = await pickFromLibrary();
+      if (uri) await routeCapturedImage('vision', uri);
       return;
     }
 
-    const result = source === 'camera'
-      ? await ImagePicker.launchCameraAsync({
-          allowsEditing: true,
-          quality: 0.8,
-        })
-      : await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ['images'],
-          allowsEditing: true,
-          quality: 0.8,
-        });
-
-    if (!result.canceled) {
-      handleSend('Please explain what is in this image:', result.assets[0].uri);
+    const opened = await openNativeCamera('vision');
+    if (!opened) {
+      const uri = await captureWithImagePickerCamera();
+      if (uri) await routeCapturedImage('vision', uri);
     }
   };
 
   const handleScanText = async () => {
-    const source = await new Promise<'camera' | 'library' | null>((resolve) => {
-      Alert.alert(
-        'Scan Text (OCR)',
-        'Choose a source. For best results, crop only the relevant paragraph after selection.',
-        [
-          { text: 'Camera', onPress: () => resolve('camera') },
-          { text: 'Library', onPress: () => resolve('library') },
-          { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
-        ]
-      );
-    });
-
+    const source = await askSource(
+      'Scan Text (OCR)',
+      'Choose a source. For best results, crop only the relevant paragraph after selection.'
+    );
     if (!source) return;
-
-    const { status } = source === 'camera' 
-      ? await ImagePicker.requestCameraPermissionsAsync()
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'We need access to scan your documents.');
+    if (source === 'library') {
+      const uri = await pickFromLibrary();
+      if (uri) await routeCapturedImage('ocr', uri);
       return;
     }
 
-    const result = source === 'camera'
-      ? await ImagePicker.launchCameraAsync({
-          allowsEditing: true,
-          quality: 0.8,
-        })
-      : await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ['images'],
-          allowsEditing: true,
-          quality: 0.8,
-        });
-
-    if (!result.canceled) {
-      setLoading(true);
-      try {
-        const manipulated = await ImageManipulator.manipulateAsync(
-          result.assets[0].uri,
-          [
-            // Optional: slight contrast boost or grayscaling if needed
-            // ImageManipulator doesn't have direct bitonal yet, 
-            // but we can ensure standard size/quality
-          ],
-          { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
-        );
-
-        const ocrResult = await OCRService.extractTextFromImage(manipulated.uri);
-        if (ocrResult.text) {
-          Alert.alert(
-            'Text Scanned',
-            'Would you like to optimize this text (fix OCR errors) using AI?',
-            [
-              {
-                text: 'Raw Text',
-                onPress: () => {
-                  setInputText(prev => prev ? `${prev}\n\n${ocrResult.text}` : ocrResult.text);
-                }
-              },
-              {
-                text: 'Optimize with AI',
-                onPress: async () => {
-                  setLoading(true);
-                  try {
-                    const result = await processDocument(ocrResult.text, 'correct');
-                    setInputText(prev => prev ? `${prev}\n\n${result}` : result);
-                  } finally {
-                    setLoading(false);
-                  }
-                }
-              }
-            ]
-          );
-        } else {
-          Alert.alert('OCR Result', 'No text could be extracted. Try cropping closer to the text.');
-        }
-      } catch (error) {
-        console.error('OCR error:', error);
-        Alert.alert('Error', 'Failed to scan text. Make sure the text is clear and readable.');
-      } finally {
-        setLoading(false);
-      }
+    const opened = await openNativeCamera('ocr');
+    if (!opened) {
+      const uri = await captureWithImagePickerCamera();
+      if (uri) await routeCapturedImage('ocr', uri);
     }
   };
 
   const handleMathProblemScan = async () => {
-    const source = await new Promise<'camera' | 'library' | null>((resolve) => {
-      Alert.alert(
-        'Solve Math Problem',
-        'Capture a math equation or expression and let Shiksha AI compute the answer.',
-        [
-          { text: 'Camera', onPress: () => resolve('camera') },
-          { text: 'Library', onPress: () => resolve('library') },
-          { text: 'Cancel', style: 'cancel', onPress: () => resolve(null) },
-        ]
-      );
-    });
-
+    const source = await askSource(
+      'Solve Math Problem',
+      'Capture a math equation or expression and let Shiksha AI compute the answer.'
+    );
     if (!source) return;
-
-    const { status } = source === 'camera'
-      ? await ImagePicker.requestCameraPermissionsAsync()
-      : await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', `We need access to your ${source === 'camera' ? 'camera' : 'gallery'} to scan the math problem.`);
+    if (source === 'library') {
+      const uri = await pickFromLibrary();
+      if (uri) await routeCapturedImage('math', uri);
       return;
     }
 
-    const result = source === 'camera'
-      ? await ImagePicker.launchCameraAsync({
-          allowsEditing: true,
-          quality: 0.8,
-        })
-      : await ImagePicker.launchImageLibraryAsync({
-          mediaTypes: ['images'],
-          allowsEditing: true,
-          quality: 0.8,
-        });
-
-    if (!result.canceled) {
-      setLoading(true);
-      try {
-        const manipulated = await ImageManipulator.manipulateAsync(
-          result.assets[0].uri,
-          [],
-          { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
-        );
-
-        const ocrResult = await OCRService.extractTextFromImage(manipulated.uri);
-        const detection = detectMathExpression(ocrResult.text);
-
-        if (!detection) {
-          Alert.alert(
-            'Math not detected',
-            'We could not find a clear math expression in the image. Try cropping tighter around the equation and try again.'
-          );
-          return;
-        }
-
-        const solution = solveMathDetection(detection);
-        if (!solution) {
-          Alert.alert('Math error', 'The expression could not be evaluated automatically. Try a simpler expression or ask the AI tutor.');
-          return;
-        }
-
-        const userMessage: Message = {
-          id: Date.now().toString(),
-          text: 'Math problem from image',
-          isUser: true,
-          timestamp: new Date(),
-          imageUri: manipulated.uri,
-          extractedText: ocrResult.text,
-        };
-
-        const aiMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          text: `🧮 Math Solver\nProblem: ${detection.originalLine}\n${solution.explanation}\n${solution.answer}\n${solution.latex}`,
-          isUser: false,
-          timestamp: new Date(),
-        };
-
-        const updatedMessages = [...messages, userMessage, aiMessage];
-        setMessages(updatedMessages);
-        await saveChat(updatedMessages);
-      } catch (error) {
-        console.error('Math solve error:', error);
-        Alert.alert('Error', 'Failed to solve the math problem. Try again with a clearer image.');
-      } finally {
-        setLoading(false);
-      }
+    const opened = await openNativeCamera('math');
+    if (!opened) {
+      const uri = await captureWithImagePickerCamera();
+      if (uri) await routeCapturedImage('math', uri);
     }
+  };
+
+  const handleTakePhoto = async () => {
+    if (!cameraRef.current || !cameraTask || cameraBusy) return;
+    setCameraBusy(true);
+    try {
+      const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
+      setCameraTask(null);
+      if (photo?.uri) {
+        await routeCapturedImage(cameraTask, photo.uri);
+      }
+    } catch (error) {
+      console.error('Camera capture failed:', error);
+      Alert.alert('Camera Error', 'Could not capture photo. Please try again.');
+    } finally {
+      setCameraBusy(false);
+    }
+  };
+
+  const toggleCameraFacing = () => {
+    setCameraFacing((prev) => (prev === 'back' ? 'front' : 'back'));
   };
 
   const startListening = async () => {
     setIsListening(true);
     try {
-      const text = await SpeechToTextService.startListening();
-      if (text) {
-        setInputText(text);
-      }
+      await SpeechToTextService.startListening(
+        (text) => {
+          if (text) setInputText(text);
+        },
+        (error) => {
+          console.error('Speech recognition error:', error);
+        }
+      );
     } catch (error) {
       console.error('Speech error:', error);
     } finally {
@@ -455,31 +521,32 @@ export default function TutorScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="light-content" />
       
-      {/* Modern Header */}
-      <LinearGradient
-        colors={INDIGO_GRADIENT as any}
-        style={styles.header}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-      >
-        <View style={styles.headerContent}>
-          <View style={styles.tutorInfo}>
-            <View style={styles.tutorAvatar}>
-              <FontAwesome5 name="robot" size={20} color={Colors.white} />
-              <View style={[styles.statusIndicator, { backgroundColor: offlineMode ? '#FFD93D' : '#4CAF50' }]} />
-            </View>
-            <View>
-              <Text style={styles.headerTitle}>Shiksha AI Tutor</Text>
-              <Text style={styles.headerStatus}>{offlineMode ? 'Running Locally' : 'Online • Ready'}</Text>
-            </View>
+      {/* Screenshot-style Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => {}} style={styles.headerAction}>
+          <Ionicons name="arrow-back" size={24} color={Colors.white} />
+        </TouchableOpacity>
+        
+        <View style={styles.headerTitleContainer}>
+          <View style={styles.askImageBadge}>
+            <Ionicons name="image" size={14} color={Colors.white} style={{ marginRight: 4 }} />
+            <Text style={styles.headerTitleText}>Ask Image</Text>
           </View>
-          <View style={styles.headerActions}>
-            <TouchableOpacity onPress={handleNewChat} style={styles.headerBtn}>
-              <MaterialIcons name="add-comment" size={22} color={Colors.white} />
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity style={styles.modelSelector}>
+            <Text style={styles.modelSelectorText}>Gemma-E2B-it</Text>
+            <Ionicons name="chevron-down" size={12} color={Colors.gray200} />
+          </TouchableOpacity>
         </View>
-      </LinearGradient>
+
+        <View style={styles.headerRightActions}>
+          <TouchableOpacity style={styles.headerAction}>
+            <Ionicons name="options-outline" size={22} color={Colors.white} />
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.headerAction, styles.plusBtnCircle]}>
+            <Ionicons name="add" size={22} color={Colors.white} />
+          </TouchableOpacity>
+        </View>
+      </View>
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -493,22 +560,14 @@ export default function TutorScreen() {
           >
             <View style={styles.welcomeHero}>
               <View style={styles.heroIconContainer}>
-                <LinearGradient
-                  colors={['#EEF2FF', '#E0E7FF']}
-                  style={styles.heroIconBg}
-                >
-                  <TutorBotIllustration width={60} height={60} />
-                </LinearGradient>
+                <View style={styles.heroIconBg}>
+                  <TutorBotIllustration width={80} height={80} />
+                </View>
               </View>
-              <Text style={styles.welcomeTitle}>Hello, {userName}! 👋</Text>
+              <Text style={styles.welcomeTitle}>New Session</Text>
               <Text style={styles.welcomeSubtitle}>
-                I'm your AI Tutor. Ask me anything about your Science, Math, or History chapters!
+                Type a message or upload an image to start learning with Shiksha AI.
               </Text>
-            </View>
-
-            <View style={styles.quickTopicsTitleRow}>
-              <Text style={styles.quickTopicsTitle}>Quick Topics</Text>
-              <View style={styles.divider} />
             </View>
 
             <View style={styles.quickTopicsContainer}>
@@ -519,10 +578,7 @@ export default function TutorScreen() {
                   onPress={() => handleSend(topic.query)}
                   activeOpacity={0.7}
                 >
-                  <View style={styles.topicEmojiContainer}>
-                    <Text style={styles.topicEmoji}>{topic.emoji}</Text>
-                  </View>
-                  <Text style={styles.topicLabel}>{topic.label}</Text>
+                  <Text style={styles.topicLabel}>{topic.emoji} {topic.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -533,14 +589,19 @@ export default function TutorScreen() {
             data={messages}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
-              <ChatBubble 
-                text={item.text}
-                isUser={item.isUser}
-                timestamp={item.timestamp}
-                imageUri={item.imageUri}
-                extractedText={item.extractedText}
-                preferredLanguage={preferredLanguage}
-              />
+              <View>
+                {!item.isUser && (
+                  <Text style={styles.modelPlatformLabel}>Model on CPU</Text>
+                )}
+                <ChatBubble 
+                  text={item.text}
+                  isUser={item.isUser}
+                  timestamp={item.timestamp}
+                  imageUri={item.imageUri}
+                  extractedText={item.extractedText}
+                  preferredLanguage={preferredLanguage}
+                />
+              </View>
             )}
             contentContainerStyle={styles.messageList}
             onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
@@ -550,69 +611,43 @@ export default function TutorScreen() {
         {loading && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="small" color={Colors.primary} />
-            <Text style={styles.loadingText}>AI is thinking...</Text>
+            <Text style={styles.loadingText}>Thinking...</Text>
           </View>
         )}
 
         <View style={styles.inputWrapper}>
-          <View style={styles.inputContainer}>
+          <View style={styles.inputRow}>
             <TouchableOpacity 
               onPress={handleImagePick} 
-              style={styles.mediaBtn}
-              id="attach-btn"
+              style={styles.plusBtn}
             >
-              <Ionicons name="camera-outline" size={24} color={Colors.primary} />
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              onPress={handleScanText} 
-              style={styles.mediaBtn}
-              id="scan-btn"
-            >
-              <Ionicons name="document-text-outline" size={24} color={Colors.primary} />
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              onPress={handleMathProblemScan} 
-              style={styles.mediaBtn}
-              id="math-btn"
-            >
-              <Ionicons name="calculator-outline" size={24} color={Colors.primary} />
+              <Ionicons name="add" size={28} color={Colors.gray200} />
             </TouchableOpacity>
             
             <TextInput
-              style={styles.input}
-              placeholder="Type your question..."
+              style={styles.inputField}
+              placeholder="Type prompt..."
               placeholderTextColor={Colors.gray400}
               value={inputText}
               onChangeText={setInputText}
               multiline
             />
-            
-            <TouchableOpacity 
-              onPress={startListening} 
-              style={styles.mediaBtn}
-              id="voice-btn"
-            >
-              <Ionicons 
-                name={isListening ? "mic" : "mic-outline"} 
-                size={24} 
-                color={isListening ? Colors.error : Colors.primary} 
-              />
-            </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={() => handleSend()}
-              disabled={loading || (!inputText.trim() && !isListening)}
-              style={styles.sendBtnModern}
-            >
-              <LinearGradient
-                colors={INDIGO_GRADIENT as any}
-                style={styles.sendBtnGradient}
+            {!inputText.trim() && (
+               <TouchableOpacity onPress={startListening} style={styles.micBtn}>
+                 <Ionicons name="mic-outline" size={24} color={Colors.gray200} />
+               </TouchableOpacity>
+            )}
+
+            {inputText.trim() ? (
+              <TouchableOpacity
+                onPress={() => handleSend()}
+                disabled={loading}
+                style={styles.sendIconBtn}
               >
-                <MaterialIcons name="send" size={20} color={Colors.white} />
-              </LinearGradient>
-            </TouchableOpacity>
+                <Ionicons name="send" size={20} color={Colors.gray200} />
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -624,6 +659,37 @@ export default function TutorScreen() {
           setShowTutorial(true);
         }}
       />
+
+      <Modal visible={!!cameraTask} animationType="slide" onRequestClose={() => setCameraTask(null)}>
+        <View style={styles.cameraRoot}>
+          {CameraView ? (
+            <CameraView ref={cameraRef} style={styles.cameraPreview} facing={cameraFacing} />
+          ) : (
+            <View style={styles.cameraUnsupported}>
+              <Text style={styles.cameraUnsupportedText}>Native camera module is unavailable.</Text>
+            </View>
+          )}
+
+          <View style={styles.cameraTopBar}>
+            <TouchableOpacity style={styles.cameraIconBtn} onPress={() => setCameraTask(null)}>
+              <Ionicons name="close" size={24} color={Colors.white} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.cameraIconBtn} onPress={toggleCameraFacing}>
+              <Ionicons name="camera-reverse-outline" size={24} color={Colors.white} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.cameraBottomBar}>
+            <TouchableOpacity
+              style={[styles.captureButton, cameraBusy && styles.captureButtonDisabled]}
+              onPress={handleTakePhoto}
+              disabled={cameraBusy}
+            >
+              <View style={styles.captureInner} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       <SpotlightTutorial
         visible={showTutorial}
@@ -640,68 +706,63 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
   },
   header: {
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    borderBottomLeftRadius: 25,
-    borderBottomRightRadius: 25,
-    elevation: 8,
-    shadowColor: '#4F46E5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-  },
-  headerContent: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.gray100,
+  },
+  headerAction: {
+    padding: 8,
+  },
+  headerTitleContainer: {
     alignItems: 'center',
   },
-  tutorInfo: {
+  askImageBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  tutorAvatar: {
-    width: 40,
-    height: 40,
+    backgroundColor: Colors.primaryLight,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
     borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    marginBottom: 4,
+  },
+  headerTitleText: {
+    color: Colors.primary,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modelSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  modelSelectorText: {
+    color: Colors.gray500,
+    fontSize: 12,
+  },
+  headerRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  plusBtnCircle: {
+    backgroundColor: Colors.gray50,
+    borderRadius: 20,
+    width: 36,
+    height: 36,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
-  },
-  statusIndicator: {
-    position: 'absolute',
-    bottom: 2,
-    right: 2,
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    borderWidth: 1.5,
-    borderColor: '#4F46E5',
-  },
-  headerTitle: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontFamily: Fonts.bold,
-  },
-  headerStatus: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 12,
-    fontFamily: Fonts.medium,
-  },
-  headerActions: {
-    flexDirection: 'row',
-  },
-  headerBtn: {
-    padding: 8,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 12,
   },
   chatContainer: {
     flex: 1,
   },
   messageList: {
     padding: 20,
-    paddingBottom: 10,
+    paddingBottom: 20,
   },
   emptyState: {
     flexGrow: 1,
@@ -720,21 +781,22 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
+    backgroundColor: Colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
   welcomeTitle: {
-    fontSize: 26,
-    fontFamily: Fonts.bold,
+    fontSize: 28,
+    fontWeight: '700',
     color: Colors.gray900,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   welcomeSubtitle: {
-    fontSize: 15,
+    fontSize: 16,
     color: Colors.gray500,
     textAlign: 'center',
-    lineHeight: 22,
-    paddingHorizontal: 20,
+    lineHeight: 24,
+    paddingHorizontal: 30,
   },
   quickTopicsTitleRow: {
     flexDirection: 'row',
@@ -744,7 +806,7 @@ const styles = StyleSheet.create({
   },
   quickTopicsTitle: {
     fontSize: 14,
-    fontFamily: Fonts.bold,
+    fontWeight: '700',
     color: Colors.gray400,
     textTransform: 'uppercase',
     letterSpacing: 1,
@@ -753,7 +815,7 @@ const styles = StyleSheet.create({
   divider: {
     flex: 1,
     height: 1,
-    backgroundColor: Colors.gray200,
+    backgroundColor: Colors.gray100,
   },
   quickTopicsContainer: {
     flexDirection: 'row',
@@ -762,24 +824,18 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   topicCard: {
-    width: (width - 74) / 2,
-    backgroundColor: Colors.white,
-    padding: 15,
-    borderRadius: 15,
-    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: Colors.gray50,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#F1F5F9',
-    elevation: 3,
-    shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
+    borderColor: Colors.gray200,
   },
   topicEmojiContainer: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: 'rgba(99, 102, 241, 0.05)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
@@ -788,9 +844,17 @@ const styles = StyleSheet.create({
     fontSize: 20,
   },
   topicLabel: {
-    fontSize: 13,
-    fontFamily: Fonts.medium,
+    fontSize: 14,
     color: Colors.gray800,
+    fontWeight: '500',
+  },
+  modelPlatformLabel: {
+    fontSize: 12,
+    color: Colors.gray400,
+    marginTop: 18,
+    marginBottom: -4,
+    paddingHorizontal: 4,
+    fontWeight: '500',
   },
   loadingContainer: {
     flexDirection: 'row',
@@ -800,45 +864,103 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     marginLeft: 8,
-    color: Colors.gray500,
+    color: Colors.gray400,
     fontSize: 12,
   },
   inputWrapper: {
-    padding: 15,
-    paddingBottom: Platform.OS === 'ios' ? 5 : 15,
-    backgroundColor: Colors.white,
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    paddingTop: 10,
   },
-  inputContainer: {
+  inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.gray50,
-    borderRadius: 25,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
+    borderRadius: 30,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    minHeight: 52,
     borderWidth: 1,
     borderColor: Colors.gray200,
   },
-  input: {
+  plusBtn: {
+    marginRight: 10,
+  },
+  inputField: {
     flex: 1,
-    fontSize: 15,
     color: Colors.gray900,
-    maxHeight: 120,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
+    fontSize: 16,
+    paddingVertical: 8,
   },
-  mediaBtn: {
-    padding: 8,
+  micBtn: {
+    paddingHorizontal: 8,
   },
-  sendBtnModern: {
+  sendIconBtn: {
+    backgroundColor: Colors.primary,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  cameraRoot: {
+    flex: 1,
+    backgroundColor: Colors.black,
+  },
+  cameraPreview: {
+    flex: 1,
+  },
+  cameraUnsupported: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cameraUnsupportedText: {
+    color: Colors.white,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  cameraTopBar: {
+    position: 'absolute',
+    top: 56,
+    left: 20,
+    right: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  cameraBottomBar: {
+    position: 'absolute',
+    bottom: 48,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  cameraIconBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    overflow: 'hidden',
-  },
-  sendBtnGradient: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.35)',
     alignItems: 'center',
+    justifyContent: 'center',
+  },
+  captureButton: {
+    width: 82,
+    height: 82,
+    borderRadius: 41,
+    borderWidth: 4,
+    borderColor: Colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+  },
+  captureButtonDisabled: {
+    opacity: 0.6,
+  },
+  captureInner: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    backgroundColor: Colors.white,
   },
 });

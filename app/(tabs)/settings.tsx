@@ -12,11 +12,12 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MaterialIcons, Ionicons, FontAwesome5 } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { MaterialIcons, Ionicons, FontAwesome5, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { deleteAllChats } from '@/storage/chatStore';
 import { getOfflineMode, setOfflineMode, getPreferredLanguage, setPreferredLanguage } from '@/storage/settingsStore';
-import { getProfile } from '@/storage/profileStore';
+import { getProfile, updateGrade, CLASS_OPTIONS } from '@/storage/profileStore';
 import { Colors, Spacing, BorderRadius, Fonts, Shadows } from '@/styles/designSystem';
 
 const LANGUAGES = [
@@ -34,6 +35,7 @@ const LANGUAGES = [
 ];
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const [offlineMode, setOfflineModeState] = useState(false);
   const [preferredLang, setPreferredLang] = useState('English');
   const [profile, setProfile] = useState<any>(null);
@@ -101,15 +103,62 @@ export default function SettingsScreen() {
             </View>
             <View style={styles.profileInfo}>
               <Text style={styles.profileName}>{profile?.name || 'Shiksha Student'}</Text>
-              <Text style={styles.profileGrade}>{profile?.grade || 'Class 9'} • {profile?.board || 'CBSE'}</Text>
+              <Text style={styles.profileGrade}>{profile?.grade || 'Class 8'} • {profile?.board || 'CBSE'}</Text>
             </View>
           </View>
         </SafeAreaView>
       </LinearGradient>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollPadding} showsVerticalScrollIndicator={false}>
+        <Text style={styles.sectionTitle}>Academic Info</Text>
+        <View style={styles.card}>
+          <TouchableOpacity 
+            style={styles.settingItem} 
+            onPress={() => {
+              Alert.alert(
+                'Select Your Class',
+                'Choose your current class',
+                CLASS_OPTIONS.map((cls) => ({
+                  text: cls,
+                  onPress: async () => {
+                    await updateGrade(cls);
+                    const updatedProfile = await getProfile();
+                    setProfile(updatedProfile);
+                  },
+                })),
+                { cancelable: true }
+              );
+            }}
+          >
+            <View style={[styles.iconBox, { backgroundColor: '#EEF2FF' }]}>
+              <Ionicons name="school-outline" size={20} color="#4F46E5" />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingLabel}>My Class</Text>
+              <Text style={styles.settingHint}>{profile?.grade || 'Class 8'}</Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={24} color={Colors.gray400} />
+          </TouchableOpacity>
+        </View>
+
         <Text style={styles.sectionTitle}>Preferences</Text>
         <View style={styles.card}>
+          <TouchableOpacity 
+            style={styles.settingItem}
+            onPress={() => router.push('/model-manager')}
+          >
+            <View style={[styles.iconBox, { backgroundColor: '#F5F3FF' }]}>
+              <MaterialCommunityIcons name="brain" size={20} color="#7C3AED" />
+            </View>
+            <View style={styles.settingContent}>
+              <Text style={styles.settingLabel}>Manage Study Models</Text>
+              <Text style={styles.settingHint}>Download brains for offline tutor</Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={24} color={Colors.gray400} />
+          </TouchableOpacity>
+
+          <View style={styles.divider} />
+
           <View style={styles.settingItem}>
             <View style={[styles.iconBox, { backgroundColor: '#EEF2FF' }]}>
               <Ionicons name="cloud-offline-outline" size={20} color="#4F46E5" />
@@ -202,7 +251,7 @@ export default function SettingsScreen() {
         </TouchableOpacity>
         
         <View style={styles.footer}>
-          <Text style={styles.footerText}>Made with ❤️ for Class 9 & 10 students</Text>
+          <Text style={styles.footerText}>Made with ❤️ for Class 8, 9 & 10 students</Text>
         </View>
       </ScrollView>
     </View>

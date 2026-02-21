@@ -8,6 +8,9 @@ export interface DashboardStats {
   todayQuestions: number;
   todayTime: number;
   currentStreak: number;
+  streak: number;
+  totalPoints: number;
+  rank: number;
   dailyGoal: number;
   accuracy: number;
   subjects: SubjectStats[];
@@ -104,6 +107,8 @@ export class DashboardService {
 
       // Daily goal (default 5)
       const dailyGoal = 5;
+      const totalPoints = Math.round(totalQuestions * 10 + accuracy * 5 + currentStreak * 20);
+      const rank = this.estimateRank(totalPoints);
 
       // Subject statistics
       const subjects = await this.getSubjectStats(userId);
@@ -123,6 +128,9 @@ export class DashboardService {
         todayQuestions,
         todayTime,
         currentStreak,
+        streak: currentStreak,
+        totalPoints,
+        rank,
         dailyGoal,
         accuracy,
         subjects,
@@ -160,6 +168,16 @@ export class DashboardService {
       console.error('Error getting subject stats:', error);
       return [];
     }
+  }
+
+  // Simple local rank approximation until backend leaderboard is available.
+  private static estimateRank(totalPoints: number): number {
+    if (totalPoints >= 5000) return 1;
+    if (totalPoints >= 3000) return 3;
+    if (totalPoints >= 1500) return 8;
+    if (totalPoints >= 800) return 15;
+    if (totalPoints >= 300) return 30;
+    return 75;
   }
 
   // Get weekly statistics

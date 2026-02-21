@@ -1,10 +1,18 @@
 import { TutorResponse } from './api';
 import { llamaBridge } from './nativeLlama';
+import { getActiveModel, Model, getActiveModelPath } from './modelDownloadService';
 
-// Path to the bundled or downloaded GGUF model. Set this after adding the native bridge.
-const DEFAULT_MODEL_PATH = '';
+let configuredModelPath = process.env.EXPO_PUBLIC_LLAMA_MODEL_PATH || '';
+let activeOllamaModel: string | null = null;
 
-// Lightweight offline generator to provide basic, on-device guidance when llama.cpp is unavailable.
+export function setOfflineModelPath(modelPath: string): void {
+  configuredModelPath = modelPath.trim();
+}
+
+export function setOllamaModel(model: string): void {
+  activeOllamaModel = model;
+}
+
 const tips = [
   'Break the problem into smaller steps and solve one part at a time.',
   'Write down the known facts and the unknowns before you start solving.',
@@ -16,7 +24,10 @@ const tips = [
 
 async function tryNativeLlama(question: string): Promise<TutorResponse | null> {
   if (!llamaBridge.isAvailable()) return null;
-  if (!DEFAULT_MODEL_PATH) return null;
+  if (!configuredModelPath) {
+    configuredModelPath = (await getActiveModelPath()) || '';
+  }
+  if (!configuredModelPath) return null;
 
   try {
     const prompt = [
@@ -27,7 +38,7 @@ async function tryNativeLlama(question: string): Promise<TutorResponse | null> {
     ].join('\n');
 
     const text = await llamaBridge.generate(prompt, {
-      modelPath: DEFAULT_MODEL_PATH,
+      modelPath: configuredModelPath,
       maxTokens: 120,
       temperature: 0.7,
     });
@@ -42,11 +53,57 @@ async function tryNativeLlama(question: string): Promise<TutorResponse | null> {
   }
 }
 
+async function tryOllama(question: string): Promise<TutorResponse | null> {
+  if (!activeOllamaModel) return null;
+
+  try {
+    const response = await fetch('http://localhost:11434/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: activeOllamaModel,
+        prompt: [
+          'You are a concise AI Tutor for Class 9 students.',
+          'Explain concepts in a short, complete, and highly useful manner.',
+          'Avoid long paragraphs. Be direct and accurate for a 9th grade level.',
+          `Question: ${question}`,
+        ].join('\n'),
+        stream: false,
+        options: {
+          temperature: 0.7,
+          num_predict: 120,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn('Ollama request failed:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    return {
+      answer: data.response || '',
+      timestamp: new Date().toISOString(),
+    };
+  } catch (error) {
+    console.warn('Ollama generation failed:', error);
+    return null;
+  }
+}
+
 export async function generateOfflineAnswer(question: string): Promise<TutorResponse> {
   const trimmed = question.trim();
   const limitedQuestion = trimmed.slice(0, 240);
 
-  // Prefer native llama.cpp if present and configured.
+  const activeModel = await getActiveModel();
+  
+  if (activeModel?.type === 'ollama' && activeModel.ollamaModel) {
+    setOllamaModel(activeModel.ollamaModel);
+    const ollamaResult = await tryOllama(limitedQuestion);
+    if (ollamaResult) return ollamaResult;
+  }
+
   const native = await tryNativeLlama(limitedQuestion);
   if (native) return native;
 

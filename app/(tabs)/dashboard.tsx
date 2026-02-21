@@ -320,7 +320,7 @@ export default function DashboardScreen() {
             <TouchableOpacity onPress={() => setSelectedSubject(null)}>
               <Ionicons name="chevron-back" size={28} color={Colors.white} />
             </TouchableOpacity>
-            <Text style={styles.modalTitleModern}>Science - Class 9</Text>
+            <Text style={styles.modalTitleModern}>Science - {profile?.grade || 'Class 8'}</Text>
             <TouchableOpacity>
               <Ionicons name="search-outline" size={24} color={Colors.white} />
             </TouchableOpacity>
@@ -341,7 +341,7 @@ export default function DashboardScreen() {
                           <Text style={[styles.badgeText, { color: '#6366F1' }]}>NCERT</Text>
                         </View>
                         <View style={[styles.badge, { backgroundColor: '#F0FDF4' }]}>
-                          <Text style={[styles.badgeText, { color: '#10B981' }]}>Class 9</Text>
+                          <Text style={[styles.badgeText, { color: '#10B981' }]}>{profile?.grade || 'Class 8'}</Text>
                         </View>
                       </View>
                     </View>

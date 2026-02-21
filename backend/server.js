@@ -13,7 +13,7 @@ app.use(express.json({ limit: '50mb' })); // Increased limit for base64 images
 
 // Ollama configuration
 const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://localhost:11434';
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'gemma3:latest';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:1.5b';
 const TRANSLATOR_SERVICE_URL = process.env.TRANSLATOR_SERVICE_URL || 'http://localhost:3001';
 
 // Check Ollama availability
@@ -37,8 +37,8 @@ checkOllama();
 
 // Health check endpoint
 app.get('/', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     message: 'Shiksha AI Backend is running',
     version: '1.0.0',
     ollama: ollamaAvailable ? 'connected' : 'disconnected',
@@ -54,12 +54,18 @@ CORE INSTRUCTIONS:
 - The student is in Class 9. Tailor all explanations to their level of understanding.
 - DO NOT give long, wordy answers. Keep it brief.
 - Be concise but complete. Explain the core concept fully but without filler.
-- Use a helpful, encouraging, and academic tone.
+- Be helpful and academic.
 - Format with bullet points if helpful for clarity.
-- Ensure the answer is highly useful and directly addresses the query.
 - Use simple analogies to explain complex scientific or mathematical concepts.
 
-Mantra: Short, complete, and useful.`;
+MATH FORMATTING RULE:
+- ALWAYS enclose ALL mathematical expressions, equations, formulas, variables, and fractions in LaTeX format.
+- For stand-alone equations (Display Mode), wrap them in dual dollar signs: e.g., $$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$
+- For expressions or variables within sentences (Inline Mode), wrap them in single dollar signs: e.g., Solve for $x$ given $2x + 4 = 10$.
+- DO NOT output raw fractions as x = 96/13. Instead, use $\\frac{96}{13}$ or $x = \\frac{96}{13}$.
+- ALWAYS use proper LaTeX operators (e.g., \\cdot for multiplication, \\pm for plus-minus, \\sqrt for square root).
+
+Mantra: Short, complete, and formatted correctly with LaTeX.`;
 };
 
 // Language Translation (Using NLLB-200 microservice)
@@ -109,8 +115,8 @@ app.post('/tutor', async (req, res) => {
     const { question, studentGrade = 'Class 9' } = req.body;
 
     if (!question || typeof question !== 'string') {
-      return res.status(400).json({ 
-        error: 'Invalid request. Question is required.' 
+      return res.status(400).json({
+        error: 'Invalid request. Question is required.'
       });
     }
 
@@ -120,11 +126,11 @@ app.post('/tutor', async (req, res) => {
     if (!ollamaAvailable) {
       // Try one last quick check
       await checkOllama();
-      
+
       if (!ollamaAvailable) {
         return res.status(503).json({
           error: 'Ollama is currently unavailable.',
-          suggestion: 'Ensure Ollama is running locally with llama3.2:3b installed.',
+          suggestion: 'Ensure Ollama is running locally with qwen2.5:1.5b installed: ollama pull qwen2.5:1.5b',
         });
       }
     }
@@ -144,7 +150,7 @@ app.post('/tutor', async (req, res) => {
   } catch (error) {
     console.error('❌ Error processing question:', error.message);
 
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to process your question. Please try again.',
       details: error.message
     });
@@ -228,8 +234,8 @@ app.post('/translate', async (req, res) => {
   }
 });
 
-// Vision endpoint using Gemma3 (proxied to Ollama)
-const VISION_MODEL = 'gemma3:latest';
+// Vision endpoint using qwen2.5:1.5b (proxied to Ollama)
+const VISION_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:1.5b';
 
 app.post('/vision', async (req, res) => {
   try {
@@ -275,9 +281,9 @@ GUIDELINES:
     });
   } catch (error) {
     console.error('❌ Vision error:', error.message);
-    res.status(500).json({ 
-      error: 'Vision processing failed', 
-      details: error.message 
+    res.status(500).json({
+      error: 'Vision processing failed',
+      details: error.message
     });
   }
 });
@@ -300,7 +306,7 @@ initTesseract().catch(err => console.error('Tesseract init failed:', err));
 app.post('/ocr', async (req, res) => {
   try {
     const { image } = req.body;
-    
+
     if (!image) {
       return res.status(400).json({ error: 'Base64 image data is required' });
     }

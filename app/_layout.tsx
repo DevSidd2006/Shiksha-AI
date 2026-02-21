@@ -12,13 +12,14 @@ export default function RootLayout() {
     // Hide device navigation bar (bottom menu buttons) on Android
     if (Platform.OS === 'android') {
       NavigationBar.setVisibilityAsync('hidden');
-      NavigationBar.setBehaviorAsync('sticky-immersive');
+      NavigationBar.setBehaviorAsync('overlay-swipe');
     }
   }, []);
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
+      <Stack.Screen name="model-manager" />
       <Stack.Screen name="(tabs)" />
     </Stack>
   );

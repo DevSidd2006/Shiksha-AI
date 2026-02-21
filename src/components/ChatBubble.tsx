@@ -87,101 +87,160 @@ export function ChatBubble({ text, isUser, timestamp, imageUri, extractedText, p
   };
 
   const renderTextContent = (content: string) => {
-    // Basic detection of math blocks (wrapped in $ or $$)
-    const mathRegex = /(\$\$?[\s\S]+?\$?\$)/g;
-    const parts = content.split(mathRegex);
+    // Determine if it's AI and if it has a title (like "Solving the Equation...")
+    let title: string | null = null;
+    let mainText = content;
 
-    return parts.map((part, index) => {
-      if (part.startsWith('$')) {
-        const formula = part.replace(/\$/g, '');
-        return (
-          <View key={index} style={styles.mathBlock}>
-            <KaTeX
-              expression={formula}
-              style={styles.katex}
-            />
-          </View>
-        );
+    if (!isUser) {
+      const titleMatch = content.match(/^([^\n]+)\n/);
+      if (titleMatch && titleMatch[1].length < 120 && (
+        titleMatch[1].includes(':') || 
+        titleMatch[1].toLowerCase().includes('solving') || 
+        titleMatch[1].toLowerCase().includes('step') ||
+        titleMatch[1].toLowerCase().includes('break down')
+      )) {
+        title = titleMatch[1];
+        mainText = content.substring(title.length).trim();
       }
-      return (
-        <Text key={index} style={[styles.text, isUser ? styles.userText : styles.tutorText]}>
-          {part}
-        </Text>
-      );
-    });
+    }
+
+    // Regex to find math blocks wrapped in $$, $, \[, or \(
+    // Added support for \[ ... \] and \( ... \) as common AI LaTeX markers
+    const mathRegex = /(\$\$.*?\$\$|\$.*?\$|\\\[.*?\\\]|\\\(.*?\\\))/gs;
+    const parts = mainText.split(mathRegex);
+
+    return (
+      <>
+        {title && <Text style={styles.bubbleTitle}>{title}</Text>}
+        <View style={styles.textWrapper}>
+          {parts.map((part, index) => {
+            if (!part) return null;
+
+            // Handle display mode: $$ or \[
+            if ((part.startsWith('$$') && part.endsWith('$$')) || (part.startsWith('\\\[') && part.endsWith('\\\]'))) {
+              const formula = part.startsWith('$$') 
+                ? part.substring(2, part.length - 2)
+                : part.substring(2, part.length - 2);
+              return (
+                <View key={index} style={styles.mathBlock}>
+                  <KaTeX
+                    expression={`\\color{black}{${formula.trim()}}`}
+                    style={styles.katex}
+                    displayMode={true}
+                  />
+                </View>
+              );
+            } 
+            // Handle inline mode: $ or \(
+            else if ((part.startsWith('$') && part.endsWith('$')) || (part.startsWith('\\\(') && part.endsWith('\\\)') && !part.includes('\n'))) {
+              const formula = part.startsWith('$')
+                ? part.substring(1, part.length - 1)
+                : part.substring(2, part.length - 2);
+              return (
+                <View key={index} style={styles.inlineMathWrapper}>
+                  <Text style={{ position: 'absolute', opacity: 0 }}>{formula.trim()}</Text>
+                  <KaTeX
+                    expression={`\\color{black}{${formula.trim()}}`}
+                    style={styles.katexInline}
+                    displayMode={false}
+                  />
+                </View>
+              );
+            }
+            
+            // Process regular text with simple markdown support
+            const renderFormattedText = (raw: string) => {
+              const trimmed = raw.trim();
+              
+              // Handle Headers (###)
+              if (trimmed.startsWith('### ')) {
+                return (
+                  <Text key={index} style={[styles.text, styles.headerText, isUser ? styles.userText : styles.tutorText]}>
+                    {trimmed.substring(4)}
+                  </Text>
+                );
+              }
+
+              // Split by bold markers
+              const boldRegex = /(\*\*.*?\*\*)/g;
+              const subParts = raw.split(boldRegex);
+
+              return (
+                <Text key={index} style={[styles.text, isUser ? styles.userText : styles.tutorText]}>
+                  {subParts.map((sub, i) => {
+                    if (sub.startsWith('**') && sub.endsWith('**')) {
+                      return (
+                        <Text key={i} style={{ fontWeight: '700' }}>
+                          {sub.substring(2, sub.length - 2)}
+                        </Text>
+                      );
+                    }
+                    return <Text key={i}>{sub}</Text>;
+                  })}
+                </Text>
+              );
+            };
+            
+            return renderFormattedText(part);
+          })}
+        </View>
+      </>
+    );
   };
 
   const renderBubbleContent = () => (
-    <View>
+    <View style={styles.bubbleContent}>
+      {!isUser && (
+        <View style={styles.tutorHeader}>
+          <View style={styles.tutorIconBg}>
+            <Ionicons name="school" size={14} color={Colors.primary} />
+          </View>
+          <Text style={styles.tutorNameLabel}>Shiksha AI</Text>
+        </View>
+      )}
       {imageUri && (
         <View style={styles.imageWrap}>
           <Image source={{ uri: imageUri }} style={styles.messageImage} />
-          <View style={styles.imageOverlay}>
-            <Ionicons name="expand" size={20} color={Colors.white} />
-          </View>
         </View>
       )}
-      <View style={styles.textWrapper}>
+      <View style={styles.contentAndFooter}>
         {renderTextContent(translatedText || text)}
+        
         {translatedText && (
           <Text style={styles.translationLine}>
             Translated to {preferredLanguage}
           </Text>
         )}
-      </View>
-      {extractedText && (
-        <View style={styles.extractedTextIndicator}>
-           <Text style={styles.extractedTextIcon}>📄</Text>
-           <Text style={styles.extractedTextTag}>Text extracted from image</Text>
-         </View>
-      )}
-      <View style={styles.footer}>
-        <Text style={[styles.timestamp, isUser ? styles.userTimestamp : styles.tutorTimestamp]}>
-          {formatTime(timestamp)}
-        </Text>
-        {!isUser && (
-          <View style={styles.tutorActions}>
-            {preferredLanguage !== 'English' && (
-              <TouchableOpacity onPress={handleTranslate} disabled={isTranslating}>
-                <Ionicons 
-                  name={translatedText ? "language" : "language-outline"} 
-                  size={16} 
-                  color={isTranslating ? Colors.gray400 : Colors.secondary} 
-                />
+
+        <View style={styles.footer}>
+          <Text style={[styles.timestamp, isUser ? styles.userTimestamp : styles.tutorTimestamp]}>
+            {formatTime(timestamp)}
+          </Text>
+          {!isUser && (
+            <View style={styles.tutorActions}>
+              <TouchableOpacity onPress={handleSpeak}>
+                <Ionicons name={isSpeaking ? "volume-high" : "volume-medium-outline"} size={16} color={Colors.gray400} />
               </TouchableOpacity>
-            )}
-            <TouchableOpacity onPress={handleSpeak}>
-              <Ionicons name={isSpeaking ? "volume-high" : "volume-medium-outline"} size={16} color={Colors.secondary} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleCopy}>
-              <Ionicons name="copy-outline" size={16} color={Colors.gray500} />
-            </TouchableOpacity>
-          </View>
-        )}
+              <TouchableOpacity onPress={handleCopy}>
+                <Ionicons name="copy-outline" size={16} color={Colors.gray400} />
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
       </View>
     </View>
   );
 
   return (
     <View style={[styles.container, isUser ? styles.userContainer : styles.tutorContainer]}>
-      {!isUser && (
-        <View style={styles.avatarMini}>
-          <FontAwesome5 name="robot" size={10} color={Colors.white} />
-        </View>
-      )}
-      {isUser ? (
-        <LinearGradient
-          colors={Colors.secondaryGradient as any}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.userBubble}
-        >
-          {renderBubbleContent()}
-        </LinearGradient>
-      ) : (
-        <View style={styles.tutorBubble}>
-          {renderBubbleContent()}
-        </View>
+      <View style={[isUser ? styles.userBubble : styles.tutorBubble]}>
+        {renderBubbleContent()}
+      </View>
+      {extractedText && (
+        <View style={styles.extractedTextIndicator}>
+           <Text style={styles.extractedTextIcon}>📄</Text>
+           <Text style={styles.extractedTextTag}>Text extracted from image</Text>
+         </View>
       )}
     </View>
   );
@@ -190,66 +249,99 @@ export function ChatBubble({ text, isUser, timestamp, imageUri, extractedText, p
 const styles = StyleSheet.create({
   container: {
     marginVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    maxWidth: '85%',
+    maxWidth: '88%',
   },
   userContainer: {
     alignSelf: 'flex-end',
+    width: 'auto',
   },
   tutorContainer: {
     alignSelf: 'flex-start',
+    width: '100%',
   },
-  avatarMini: {
+  userBubble: {
+    padding: 14,
+    backgroundColor: Colors.primary,
+    borderRadius: 22,
+    borderBottomRightRadius: 4,
+  },
+  tutorBubble: {
+    padding: 16,
+    backgroundColor: Colors.white,
+    borderRadius: 22,
+    borderBottomLeftRadius: 4,
+    borderWidth: 1,
+    borderColor: Colors.gray100,
+    // Subtle shadow for elegance
+    shadowColor: Colors.gray900,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  bubbleContent: {
+    width: '100%',
+  },
+  tutorHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 8,
+    opacity: 0.9,
+  },
+  tutorIconBg: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: Colors.secondary,
+    backgroundColor: Colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 8,
-    marginBottom: 4,
   },
-  userBubble: {
-    padding: Spacing.md,
-    borderRadius: 20,
-    borderBottomRightRadius: 4,
-    ...Colors.cardShadow as any,
-  },
-  tutorBubble: {
-    padding: Spacing.md,
-    backgroundColor: Colors.white,
-    borderRadius: 20,
-    borderBottomLeftRadius: 4,
-    ...Colors.cardShadow as any,
+  tutorNameLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   imageWrap: {
-    marginBottom: 8,
-    borderRadius: 12,
+    marginBottom: 12,
+    borderRadius: 16,
     overflow: 'hidden',
-    position: 'relative',
+    backgroundColor: Colors.gray100,
   },
   messageImage: {
-    width: 200,
-    height: 150,
+    width: '100%',
+    aspectRatio: 1.2,
+    resizeMode: 'cover',
   },
-  imageOverlay: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderRadius: 8,
-    padding: 4,
+  contentAndFooter: {
+    flexDirection: 'column',
+  },
+  bubbleTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.primaryDark,
+    marginBottom: 8,
+    letterSpacing: -0.2,
   },
   text: {
-    fontSize: 15,
-    lineHeight: 22,
-    fontWeight: '500',
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: '400',
+    letterSpacing: -0.1,
   },
   userText: {
     color: Colors.white,
   },
   tutorText: {
+    color: Colors.gray800,
+  },
+  headerText: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginTop: 8,
+    marginBottom: 4,
     color: Colors.gray900,
   },
   textWrapper: {
@@ -257,30 +349,59 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   translationLine: {
-    fontSize: 10,
+    fontSize: 11,
     fontStyle: 'italic',
     color: Colors.secondary,
-    marginTop: 4,
+    marginTop: 10,
+    paddingTop: 6,
     borderTopWidth: 0.5,
-    borderTopColor: 'rgba(0,0,0,0.05)',
-    paddingTop: 4,
+    borderTopColor: Colors.gray100,
   },
   mathBlock: {
-    marginVertical: 8,
-    minHeight: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
-    borderRadius: 8,
-    padding: 4,
+    marginVertical: 14,
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    padding: 12,
+    minHeight: 70,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.gray200,
+    // Soft shadow for math block
+    shadowColor: Colors.gray400,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  inlineMathWrapper: {
+    marginHorizontal: 1,
+    paddingHorizontal: 4,
+    backgroundColor: Colors.white,
+    borderRadius: 4,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 0.5,
+    borderColor: Colors.gray200,
   },
   katex: {
-    flex: 1,
+    width: '100%',
+    height: 70, // Increased height for complex formulas
+    backgroundColor: Colors.white,
+  },
+  katexInline: {
+    width: 80,
+    height: 30,
+    backgroundColor: Colors.white,
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 6,
-    minWidth: 40,
+    marginTop: 12,
+    paddingTop: 8,
+    borderTopWidth: 0.5,
+    borderTopColor: 'rgba(0,0,0,0.03)',
   },
   timestamp: {
     fontSize: 10,
@@ -290,28 +411,32 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.7)',
   },
   tutorTimestamp: {
-    color: Colors.gray500,
+    color: Colors.gray400,
   },
   tutorActions: {
     flexDirection: 'row',
     gap: 12,
-    marginLeft: 15,
   },
   extractedTextIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 8,
-    marginTop: 8,
+    marginTop: 6,
+    marginLeft: 4,
+    backgroundColor: Colors.gray50,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 0.5,
+    borderColor: Colors.gray200,
   },
   extractedTextIcon: {
-    fontSize: 12,
+    fontSize: 10,
     marginRight: 6,
   },
   extractedTextTag: {
     fontSize: 10,
-    color: Colors.gray600,
+    color: Colors.gray500,
+    fontWeight: '500',
   },
 });

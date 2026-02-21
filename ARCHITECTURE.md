@@ -1,5 +1,13 @@
 # Shiksha AI - System Architecture (Offline-First v0+)
 
+> Status note (February 21, 2026): Parts of this document are historical.
+> The current implementation in this repository uses:
+> - Expo React Native frontend
+> - Express backend with Ollama (`qwen2.5:1.5b` by default)
+> - OCR via Tesseract.js backend endpoint
+> - Local persistence via AsyncStorage and Expo SQLite
+> It does not currently use OpenAI API or MongoDB in active backend code.
+
 ## 🏗️ High-Level Overview
 
 ```

@@ -2,6 +2,8 @@ import * as SQLite from 'expo-sqlite';
 
 // Initialize database
 const db = SQLite.openDatabaseSync('shiksha_ai.db');
+const DEFAULT_USER_ID = 'student_default';
+const DEFAULT_SETTINGS_ID = 'settings_default';
 
 export const initializeDatabase = async () => {
   try {
@@ -108,6 +110,26 @@ export const initializeDatabase = async () => {
         synced INTEGER DEFAULT 0
       );
 
+      -- App metadata key-value table
+      CREATE TABLE IF NOT EXISTS app_meta (
+        key TEXT PRIMARY KEY,
+        value TEXT
+      );
+
+      -- Models table for local on-device inference
+      CREATE TABLE IF NOT EXISTS models (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        localPath TEXT,
+        remoteUrl TEXT,
+        size TEXT,
+        status TEXT DEFAULT 'not-downloaded', -- 'downloaded', 'downloading', 'error', 'ollama'
+        isDefault INTEGER DEFAULT 0,
+        type TEXT DEFAULT 'gguf',
+        ollamaModel TEXT,
+        createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
       -- Create indexes for performance
       CREATE INDEX IF NOT EXISTS idx_messages_chatId ON messages(chatId);
       CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp);
@@ -117,6 +139,17 @@ export const initializeDatabase = async () => {
       CREATE INDEX IF NOT EXISTS idx_sync_queue_synced ON sync_queue(synced);
       CREATE INDEX IF NOT EXISTS idx_sync_queue_createdAt ON sync_queue(createdAt);
     `);
+
+    // Seed default offline user/settings used by local-only mode.
+    await db.runAsync(
+      `INSERT OR IGNORE INTO users (id, name, grade) VALUES (?, ?, ?)`,
+      [DEFAULT_USER_ID, 'Student', 9]
+    );
+
+    await db.runAsync(
+      `INSERT OR IGNORE INTO settings (id, userId, offlineMode) VALUES (?, ?, ?)`,
+      [DEFAULT_SETTINGS_ID, DEFAULT_USER_ID, 0]
+    );
 
     console.log('✅ Database initialized successfully');
     return true;

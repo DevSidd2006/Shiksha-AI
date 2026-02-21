@@ -1,13 +1,15 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import db from '@/database/init';
 
-const CURRENT_CHAT_KEY = '@shiksha_current_chat';
-const CHAT_HISTORY_KEY = '@shiksha_chat_history';
+const DEFAULT_USER_ID = 'student_default';
+const CURRENT_CHAT_KEY = 'current_chat_id';
 
 interface Message {
   id: string;
   text: string;
   isUser: boolean;
   timestamp: Date;
+  imageUri?: string;
+  extractedText?: string;
 }
 
 interface Chat {
@@ -23,20 +25,72 @@ interface ChatHistory {
   messageCount: number;
 }
 
+const rowToMessage = (row: {
+  id: string;
+  role: string;
+  content: string;
+  timestamp: string;
+}) => ({
+  id: row.id,
+  text: row.content,
+  isUser: row.role === 'user',
+  timestamp: new Date(row.timestamp),
+});
+
+async function getCurrentChatId(): Promise<string | null> {
+  const row = await db.getFirstAsync<{ value: string }>(
+    `SELECT value FROM app_meta WHERE key = ?`,
+    [CURRENT_CHAT_KEY]
+  );
+  return row?.value || null;
+}
+
+async function setCurrentChatId(chatId: string): Promise<void> {
+  await db.runAsync(
+    `INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)`,
+    [CURRENT_CHAT_KEY, chatId]
+  );
+}
+
+async function clearCurrentChatId(): Promise<void> {
+  await db.runAsync(`DELETE FROM app_meta WHERE key = ?`, [CURRENT_CHAT_KEY]);
+}
+
 // Save current chat session
 export async function saveChat(messages: Message[]): Promise<void> {
   try {
-    const chat: Chat = {
-      id: Date.now().toString(),
-      messages,
-      timestamp: new Date(),
-    };
+    if (messages.length === 0) return;
 
-    await AsyncStorage.setItem(CURRENT_CHAT_KEY, JSON.stringify(chat));
+    let chatId = await getCurrentChatId();
+    if (!chatId) {
+      chatId = Date.now().toString();
+      await db.runAsync(
+        `INSERT INTO chats (id, userId, title, messageCount, createdAt, updatedAt)
+         VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))`,
+        [chatId, DEFAULT_USER_ID, 'New Conversation', messages.length]
+      );
+      await setCurrentChatId(chatId);
+    } else {
+      await db.runAsync(`DELETE FROM messages WHERE chatId = ?`, [chatId]);
+      await db.runAsync(
+        `UPDATE chats SET messageCount = ?, updatedAt = datetime('now') WHERE id = ?`,
+        [messages.length, chatId]
+      );
+    }
 
-    // Also add to history if there are messages
-    if (messages.length > 0) {
-      await addToHistory(chat);
+    for (const msg of messages) {
+      const safeId = msg.id || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      await db.runAsync(
+        `INSERT OR REPLACE INTO messages (id, chatId, role, content, timestamp)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          safeId,
+          chatId,
+          msg.isUser ? 'user' : 'assistant',
+          msg.text,
+          new Date(msg.timestamp).toISOString(),
+        ]
+      );
     }
   } catch (error) {
     console.error('Error saving chat:', error);
@@ -46,66 +100,74 @@ export async function saveChat(messages: Message[]): Promise<void> {
 // Get current chat session
 export async function getCurrentChat(): Promise<Chat | null> {
   try {
-    const chatJson = await AsyncStorage.getItem(CURRENT_CHAT_KEY);
-    if (chatJson) {
-      const chat = JSON.parse(chatJson);
-      // Convert timestamp strings back to Date objects
-      chat.timestamp = new Date(chat.timestamp);
-      chat.messages = chat.messages.map((msg: any) => ({
-        ...msg,
-        timestamp: new Date(msg.timestamp),
-      }));
-      return chat;
-    }
-    return null;
+    const chatId = await getCurrentChatId();
+    if (!chatId) return null;
+
+    const chatRow = await db.getFirstAsync<{ id: string; updatedAt: string }>(
+      `SELECT id, updatedAt FROM chats WHERE id = ?`,
+      [chatId]
+    );
+    if (!chatRow) return null;
+
+    const rows = await db.getAllAsync<{
+      id: string;
+      role: string;
+      content: string;
+      timestamp: string;
+    }>(
+      `SELECT id, role, content, timestamp
+       FROM messages
+       WHERE chatId = ?
+       ORDER BY datetime(timestamp) ASC`,
+      [chatId]
+    );
+
+    return {
+      id: chatId,
+      messages: rows.map(rowToMessage),
+      timestamp: new Date(chatRow.updatedAt),
+    };
   } catch (error) {
     console.error('Error getting current chat:', error);
     return null;
   }
 }
 
-// Add chat to history
-async function addToHistory(chat: Chat): Promise<void> {
-  try {
-    const historyJson = await AsyncStorage.getItem(CHAT_HISTORY_KEY);
-    const history: Chat[] = historyJson ? JSON.parse(historyJson) : [];
-
-    // Check if this chat is already in history (update it)
-    const existingIndex = history.findIndex((h) => h.id === chat.id);
-    if (existingIndex >= 0) {
-      history[existingIndex] = chat;
-    } else {
-      history.unshift(chat); // Add to beginning
-    }
-
-    // Keep only last 50 chats
-    const limitedHistory = history.slice(0, 50);
-
-    await AsyncStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(limitedHistory));
-  } catch (error) {
-    console.error('Error adding to history:', error);
-  }
-}
-
 // Get all chat history
 export async function getAllChats(): Promise<ChatHistory[]> {
   try {
-    const historyJson = await AsyncStorage.getItem(CHAT_HISTORY_KEY);
-    if (historyJson) {
-      const history: Chat[] = JSON.parse(historyJson);
-      
-      // Convert to ChatHistory format
-      return history.map((chat) => {
-        const firstUserMessage = chat.messages.find((msg) => msg.isUser);
-        return {
-          id: chat.id,
-          firstMessage: firstUserMessage?.text || 'Empty conversation',
-          timestamp: new Date(chat.timestamp),
-          messageCount: chat.messages.length,
-        };
+    const chats = await db.getAllAsync<{
+      id: string;
+      updatedAt: string;
+      messageCount: number;
+    }>(
+      `SELECT id, updatedAt, messageCount
+       FROM chats
+       ORDER BY datetime(updatedAt) DESC
+       LIMIT 50`
+    );
+
+    const result: ChatHistory[] = [];
+
+    for (const chat of chats) {
+      const firstUserMessage = await db.getFirstAsync<{ content: string }>(
+        `SELECT content
+         FROM messages
+         WHERE chatId = ? AND role = 'user'
+         ORDER BY datetime(timestamp) ASC
+         LIMIT 1`,
+        [chat.id]
+      );
+
+      result.push({
+        id: chat.id,
+        firstMessage: firstUserMessage?.content || 'Empty conversation',
+        timestamp: new Date(chat.updatedAt),
+        messageCount: chat.messageCount || 0,
       });
     }
-    return [];
+
+    return result;
   } catch (error) {
     console.error('Error getting all chats:', error);
     return [];
@@ -115,7 +177,9 @@ export async function getAllChats(): Promise<ChatHistory[]> {
 // Delete all chats
 export async function deleteAllChats(): Promise<void> {
   try {
-    await AsyncStorage.multiRemove([CURRENT_CHAT_KEY, CHAT_HISTORY_KEY]);
+    await db.runAsync(`DELETE FROM messages`);
+    await db.runAsync(`DELETE FROM chats`);
+    await clearCurrentChatId();
   } catch (error) {
     console.error('Error deleting all chats:', error);
   }
@@ -124,7 +188,7 @@ export async function deleteAllChats(): Promise<void> {
 // Clear current chat (start new conversation)
 export async function clearCurrentChat(): Promise<void> {
   try {
-    await AsyncStorage.removeItem(CURRENT_CHAT_KEY);
+    await clearCurrentChatId();
   } catch (error) {
     console.error('Error clearing current chat:', error);
   }
@@ -133,22 +197,30 @@ export async function clearCurrentChat(): Promise<void> {
 // Get full chat by ID
 export async function getFullChat(chatId: string): Promise<Chat | null> {
   try {
-    const historyJson = await AsyncStorage.getItem(CHAT_HISTORY_KEY);
-    if (historyJson) {
-      const history: Chat[] = JSON.parse(historyJson);
-      const chat = history.find((c) => c.id === chatId);
-      
-      if (chat) {
-        // Convert timestamp strings back to Date objects
-        chat.timestamp = new Date(chat.timestamp);
-        chat.messages = chat.messages.map((msg: any) => ({
-          ...msg,
-          timestamp: new Date(msg.timestamp),
-        }));
-        return chat;
-      }
-    }
-    return null;
+    const chat = await db.getFirstAsync<{ id: string; updatedAt: string }>(
+      `SELECT id, updatedAt FROM chats WHERE id = ?`,
+      [chatId]
+    );
+    if (!chat) return null;
+
+    const rows = await db.getAllAsync<{
+      id: string;
+      role: string;
+      content: string;
+      timestamp: string;
+    }>(
+      `SELECT id, role, content, timestamp
+       FROM messages
+       WHERE chatId = ?
+       ORDER BY datetime(timestamp) ASC`,
+      [chatId]
+    );
+
+    return {
+      id: chat.id,
+      messages: rows.map(rowToMessage),
+      timestamp: new Date(chat.updatedAt),
+    };
   } catch (error) {
     console.error('Error getting full chat:', error);
     return null;
@@ -158,11 +230,12 @@ export async function getFullChat(chatId: string): Promise<Chat | null> {
 // Delete a specific chat
 export async function deleteChat(chatId: string): Promise<void> {
   try {
-    const historyJson = await AsyncStorage.getItem(CHAT_HISTORY_KEY);
-    if (historyJson) {
-      const history: Chat[] = JSON.parse(historyJson);
-      const filteredHistory = history.filter((c) => c.id !== chatId);
-      await AsyncStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(filteredHistory));
+    await db.runAsync(`DELETE FROM messages WHERE chatId = ?`, [chatId]);
+    await db.runAsync(`DELETE FROM chats WHERE id = ?`, [chatId]);
+
+    const currentId = await getCurrentChatId();
+    if (currentId === chatId) {
+      await clearCurrentChatId();
     }
   } catch (error) {
     console.error('Error deleting chat:', error);

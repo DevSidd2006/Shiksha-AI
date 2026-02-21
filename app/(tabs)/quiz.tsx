@@ -260,7 +260,9 @@ export default function QuizScreen() {
             
             <TouchableOpacity 
               style={styles.primaryBtn} 
-              onPress={() => startQuiz(currentChapter)}
+              onPress={() => {
+                if (currentChapter) startQuiz(currentChapter);
+              }}
             >
               <LinearGradient colors={INDIGO_GRADIENT as any} style={styles.btnGradient}>
                 <Text style={styles.primaryBtnText}>Retry Quiz</Text>

@@ -178,7 +178,7 @@ export default function FlashcardsScreen() {
         <TouchableOpacity activeOpacity={1} onPress={handleFlip} style={styles.cardContainer}>
           <Animated.View style={[styles.card, styles.cardFront, { transform: [{ rotateY: frontInterpolate }], opacity: frontOpacity }]}>
             <Text style={styles.cardTag}>Question</Text>
-            <Text style={styles.cardText}>{currentCard?.question || currentCard?.front}</Text>
+            <Text style={styles.cardText}>{currentCard?.question}</Text>
             <View style={styles.flipHint}>
               <Ionicons name="refresh" size={16} color={Colors.gray400} />
               <Text style={styles.flipHintText}>Tap to see answer</Text>
@@ -187,7 +187,7 @@ export default function FlashcardsScreen() {
 
           <Animated.View style={[styles.card, styles.cardBack, { transform: [{ rotateY: backInterpolate }], opacity: backOpacity }]}>
             <Text style={styles.cardTag}>Answer</Text>
-            <Text style={styles.cardTextBack}>{currentCard?.answer || currentCard?.back}</Text>
+            <Text style={styles.cardTextBack}>{currentCard?.answer}</Text>
             <View style={styles.flipHint}>
               <Ionicons name="refresh" size={16} color={Colors.gray400} />
               <Text style={styles.flipHintText}>Tap to see question</Text>

@@ -2,20 +2,30 @@
 
 ## Supported Versions
 
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
-
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
+Security fixes are provided for the current `main` branch.
+Older snapshots and forks are not guaranteed to receive patches.
 
 ## Reporting a Vulnerability
 
-Use this section to tell people how to report a vulnerability.
+If you discover a security issue, please report it privately:
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+1. Open a GitHub Security Advisory (preferred), or
+2. Email the maintainer listed on the repository profile.
+
+Please include:
+
+- A clear description of the issue
+- Reproduction steps or proof of concept
+- Impact assessment
+- Suggested mitigation (if available)
+
+## Response Expectations
+
+- Initial acknowledgment: within 7 days
+- Triage and severity assessment: as soon as reproducible
+- Patch timeline: depends on severity and complexity
+
+## Scope Notes
+
+- Do not include real API keys, personal student data, or private credentials in reports.
+- The project is designed for local/offline-first usage; most sensitive risk areas are local device storage, backend exposure, and model endpoint misuse.

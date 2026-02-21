@@ -27,7 +27,8 @@ const sanitizeLine = (line: string) =>
     .replace(/×/g, '*')
     .replace(/÷/g, '/')
     .replace(/[—–‐‑]/g, '-')
-    .replace(/[^0-9+\-*/^().= ]/g, ' ')
+    .replace(/[\u00D7]/g, '*') // Multiply sign
+    .replace(/[\u00F7]/g, '/') // Divide sign
     .replace(/\s+/g, ' ')
     .trim();
 
@@ -46,11 +47,13 @@ export const detectMathExpression = (text: string): MathDetection | null => {
 
   for (const line of lines) {
     if (!/[0-9]/.test(line)) continue;
-    if (!/[+\-*/^=×÷]/.test(line)) continue;
-    if (/[a-zA-Z]/.test(line)) continue;
+    if (!/[+\-*/^=×÷()]/.test(line)) continue;
 
     const cleaned = sanitizeLine(line);
-    if (!cleaned || !/[+\-*/^]/.test(cleaned)) continue;
+    if (!cleaned) continue;
+
+    // Check if it has at least one operator or starts with common math functions
+    if (!/[+\-*/^=]/.test(cleaned) && !/^(sqrt|log|sin|cos|tan)/.test(cleaned)) continue;
 
     const [leftSide = '', rightSide = ''] = cleaned.split('=').map((part) => part.trim());
     const normalized = leftSide || cleaned;
@@ -70,23 +73,25 @@ export const detectMathExpression = (text: string): MathDetection | null => {
 
 export const solveMathDetection = (detection: MathDetection): MathSolution | null => {
   try {
-    const leftValue = math.evaluate(detection.normalizedExpression);
+    const node = math.parse(detection.normalizedExpression);
+    const leftValue = node.evaluate();
     const leftStr = formatValue(leftValue);
 
     let answer = `Solution: ${leftStr}`;
     let explanation = `Calculated expression: ${detection.normalizedExpression}`;
     let rightStr: string | undefined;
+    let latexExpression = '';
 
     if (detection.rightExpression) {
-      const rightValue = math.evaluate(detection.rightExpression);
+      const rightNode = math.parse(detection.rightExpression);
+      const rightValue = rightNode.evaluate();
       rightStr = formatValue(rightValue);
-      answer = `Left = ${leftStr}, Right = ${rightStr}`;
-      explanation = `Left-hand side (${detection.normalizedExpression}) evaluates to ${leftStr}. Right-hand side (${detection.rightExpression}) evaluates to ${rightStr}.`;
+      answer = `Left = ${leftStr}, ${leftValue === rightValue ? 'Verified ✓' : 'Mismatch ✗'}`;
+      explanation = `Left side evaluates to ${leftStr}. Right side evaluates to ${rightStr}.`;
+      latexExpression = `${node.toTex()} = ${rightNode.toTex()}`;
+    } else {
+      latexExpression = `${node.toTex()} = ${leftStr}`;
     }
-
-    const latexExpression = detection.hasEquation
-      ? `${detection.normalizedExpression} = ${rightStr || '??'}`
-      : `${detection.normalizedExpression} = ${leftStr}`;
 
     const latex = `$$${latexExpression}$$`;
 
@@ -98,8 +103,8 @@ export const solveMathDetection = (detection: MathDetection): MathSolution | nul
       rightValue: rightStr,
       latex,
     };
-  } catch (error) {
-    console.error('Math evaluation failed:', error instanceof Error ? error.message : error);
+  } catch (error: any) {
+    console.warn('Math solve error:', error.message);
     return null;
   }
 };

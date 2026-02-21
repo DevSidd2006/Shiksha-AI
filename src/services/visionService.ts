@@ -57,7 +57,7 @@ async function analyzeWithVisionModel(base64Image: string): Promise<VisionResult
       },
       body: JSON.stringify({
         image: base64Image,
-        prompt: 'Extract all text from this image and provide a brief description of what you see.',
+        question: 'Extract all text from this image and provide a brief description of what you see.',
       }),
     });
 
@@ -68,11 +68,12 @@ async function analyzeWithVisionModel(base64Image: string): Promise<VisionResult
 
     const data = await response.json();
 
+    const answer = (data.answer || '').trim();
     return {
-      text: data.text.trim(),
-      description: data.description || '',
+      text: answer,
+      description: '',
       confidence: data.confidence || 0.9,
-      model: data.model || 'qwen3-vl',
+      model: data.model || 'qwen2.5:1.5b',
       timestamp: new Date().toISOString(),
     };
   } catch (error) {

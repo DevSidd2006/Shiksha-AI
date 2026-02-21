@@ -18,8 +18,8 @@ The core idea is to democratize education by localizing AI. By running lightweig
 ### Technology Stack & Tools
 - **Frontend:** React Native with Expo (SDK 54) for a seamless cross-platform mobile experience.
 - **AI Models:** 
-  - **Gemma 3 (4b/12b):** Our unified multimodal model used for both reasoning and vision tasks.
-  - **Ollama:** Used for local hosting and orchestration of the Gemma 3 model.
+  - **Qwen2.5 (default: 1.5b):** Local model used for tutoring and image-question workflows via Ollama.
+  - **Ollama:** Used for local hosting and orchestration of the model.
 - **Storage:** 
   - **Expo SQLite:** For structured data like progress, quizzes, and local chat history.
   - **Zustand:** For local state management ($authStore.ts$, $chatStore.ts$).
@@ -30,7 +30,7 @@ The core idea is to democratize education by localizing AI. By running lightweig
 - **Backend (Optional Sync):** Node.js/Express for cloud backup and analytics when online.
 
 ## 🧠 How We Use AI
-- **Unified Multimodal AI:** Powered by **Gemma 3** (via Ollama) for local reasoning and visual diagram analysis.
+- **Unified Local AI:** Powered by **Ollama** (default model: `qwen2.5:1.5b`) for tutoring and visual analysis.
 - **Socratic Tutoring:** Guides students through logic and NCERT curriculum rather than just providing answers.
 - **Offline Intelligence:** Optimized to run on mid-range hardware, ensuring 100% privacy and accessibility.
 
@@ -49,7 +49,7 @@ git clone https://github.com/yourusername/shiksha-ai.git
 cd shiksha-ai && npm install
 
 # 2. Pull AI models
-ollama pull gemma3:4b      # Unified model for Tutoring & Vision
+ollama pull qwen2.5:1.5b   # Default model for Tutoring & Vision
 ollama serve
 
 # 3. Start backend
@@ -121,8 +121,8 @@ backend/
 
 | Model | Purpose | Command |
 |-------|---------|---------|
-| gemma3:4b | Tutoring & Vision (Primary) | `ollama pull gemma3:4b` |
-| gemma3:12b | High-accuracy mode | `ollama pull gemma3:12b` |
+| qwen2.5:1.5b | Tutoring & Vision (Default) | `ollama pull qwen2.5:1.5b` |
+| qwen2.5:7b | Higher quality (optional) | `ollama pull qwen2.5:7b` |
 
 ---
 
@@ -168,7 +168,7 @@ Supports: English, Hindi, Marathi, Tamil, Telugu, Bengali
 | Issue | Fix |
 |-------|-----|
 | Ollama not connecting | `ollama serve` + check firewall |
-| Model not found | `ollama pull gemma3:4b` |
+| Model not found | `ollama pull qwen2.5:1.5b` |
 | OCR not working | Start backend on port 3000 |
 | Translation failing | Start `translator_service.py` on 3001 |
 
