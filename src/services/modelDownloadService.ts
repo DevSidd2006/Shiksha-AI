@@ -79,7 +79,7 @@ async function ensureSeededModels(): Promise<void> {
 async function getDownloadedModelsInternal(): Promise<Model[]> {
   await ensureSeededModels();
   return db.getAllAsync<Model>(
-    'SELECT * FROM models WHERE status = "downloaded" AND localPath IS NOT NULL ORDER BY isDefault DESC, createdAt ASC'
+    'SELECT * FROM models WHERE (status = "downloaded" AND localPath IS NOT NULL) OR status = "ollama" ORDER BY isDefault DESC, createdAt ASC'
   );
 }
 
@@ -115,7 +115,7 @@ export const getActiveModel = async (): Promise<Model | null> => {
 
   if (activeRow?.value) {
     const byId = await db.getFirstAsync<Model>(
-      'SELECT * FROM models WHERE id = ? AND status = "downloaded" AND localPath IS NOT NULL',
+      'SELECT * FROM models WHERE id = ? AND ((status = "downloaded" AND localPath IS NOT NULL) OR status = "ollama")',
       [activeRow.value]
     );
     if (byId) return byId;
