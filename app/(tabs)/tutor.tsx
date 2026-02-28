@@ -22,21 +22,21 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons, Ionicons, FontAwesome5, MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { sendQuestion, processDocument } from '@/services/api';
-import { generateOfflineAnswer } from '@/services/offlineTutor';
-import { detectMathExpression, solveMathDetection } from '@/services/mathSolver';
-import { getOfflineMode, getPreferredLanguage } from '@/storage/settingsStore';
-import { saveChat, getCurrentChat, clearCurrentChat } from '@/storage/chatStore';
-import { ChatBubble } from '@/components/ChatBubble';
-import { SpeechToTextService } from '@/services/speechToText';
-import { OCRService } from '@/services/ocrService';
-import { getProfile } from '@/storage/profileStore';
-import { VisionLanguageService } from '@/services/visionLanguageService';
+import { sendQuestion, processDocument } from '@/features/ai';
+import { generateOfflineAnswer } from '@/features/ai';
+import { detectMathExpression, solveMathDetection } from '@/features/ai';
+import { getOfflineMode, getPreferredLanguage } from '@/features/user';
+import { saveChat, getCurrentChat, clearCurrentChat } from '@/features/chat';
+import { ChatBubble } from '@/features/chat';
+import { SpeechToTextService } from '@/features/ai';
+import { OCRService } from '@/features/ai';
+import { getProfile } from '@/features/user';
+import { VisionLanguageService } from '@/features/ai';
 import * as ImageManipulator from 'expo-image-manipulator';
-import { WelcomeSplash } from '@/components/WelcomeSplash';
-import TutorBotIllustration from '@/components/illustrations/TutorBotIllustration';
-import { SpotlightTutorial, SpotlightStep } from '@/components/SpotlightTutorial';
-import { Colors, Fonts, Shadows, Spacing, BorderRadius } from '@/styles/designSystem';
+import { WelcomeSplash } from '@/features/onboarding';
+import { TutorBotIllustration } from '@/features/onboarding';
+import { SpotlightTutorial, SpotlightStep } from '@/features/onboarding';
+import { Colors, Fonts, Shadows, Spacing, BorderRadius } from '@/shared';
 
 const { width } = Dimensions.get('window');
 const ExpoCameraModule: any = (() => {
@@ -56,6 +56,7 @@ interface Message {
   timestamp: Date;
   imageUri?: string;
   extractedText?: string;
+  tokensPerSec?: number;
 }
 type CaptureTask = 'vision' | 'ocr' | 'math';
 
@@ -83,7 +84,7 @@ export default function TutorScreen() {
   const [cameraTask, setCameraTask] = useState<CaptureTask | null>(null);
   const [cameraFacing, setCameraFacing] = useState<'back' | 'front'>('back');
   const [cameraBusy, setCameraBusy] = useState(false);
-  
+
   const flatListRef = useRef<FlatList>(null);
   const cameraRef = useRef<any>(null);
 
@@ -96,11 +97,11 @@ export default function TutorScreen() {
       (async () => {
         const isOffline = await getOfflineMode();
         setOfflineMode(isOffline);
-        
+
         const lang = await getPreferredLanguage();
         setPreferredLanguage(lang);
       })();
-      return () => {};
+      return () => { };
     }, [])
   );
 
@@ -161,10 +162,12 @@ export default function TutorScreen() {
 
     try {
       let responseText = '';
-      
+      let tps: number | undefined;
+
       if (offlineMode) {
         const response = await generateOfflineAnswer(text);
         responseText = response.answer;
+        if ((response as any).tokensPerSec) tps = (response as any).tokensPerSec;
       } else {
         if (imageUri) {
           responseText = await VisionLanguageService.analyzeImage(imageUri, text || 'Explain this image');
@@ -179,6 +182,7 @@ export default function TutorScreen() {
         text: responseText,
         isUser: false,
         timestamp: new Date(),
+        tokensPerSec: tps,
       };
 
       const updatedMessages = [...newMessages, aiMsg];
@@ -478,8 +482,8 @@ export default function TutorScreen() {
       'Start a fresh chat? Your current history will be saved.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'New Chat', 
+        {
+          text: 'New Chat',
           onPress: async () => {
             await clearCurrentChat();
             setMessages([]);
@@ -520,13 +524,13 @@ export default function TutorScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="light-content" />
-      
+
       {/* Screenshot-style Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => {}} style={styles.headerAction}>
+        <TouchableOpacity onPress={() => { }} style={styles.headerAction}>
           <Ionicons name="arrow-back" size={24} color={Colors.white} />
         </TouchableOpacity>
-        
+
         <View style={styles.headerTitleContainer}>
           <View style={styles.askImageBadge}>
             <Ionicons name="image" size={14} color={Colors.white} style={{ marginRight: 4 }} />
@@ -554,7 +558,7 @@ export default function TutorScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         {messages.length === 0 ? (
-          <ScrollView 
+          <ScrollView
             contentContainerStyle={styles.emptyState}
             showsVerticalScrollIndicator={false}
           >
@@ -593,13 +597,14 @@ export default function TutorScreen() {
                 {!item.isUser && (
                   <Text style={styles.modelPlatformLabel}>Model on CPU</Text>
                 )}
-                <ChatBubble 
+                <ChatBubble
                   text={item.text}
                   isUser={item.isUser}
                   timestamp={item.timestamp}
                   imageUri={item.imageUri}
                   extractedText={item.extractedText}
                   preferredLanguage={preferredLanguage}
+                  tokensPerSec={item.tokensPerSec}
                 />
               </View>
             )}
@@ -617,13 +622,13 @@ export default function TutorScreen() {
 
         <View style={styles.inputWrapper}>
           <View style={styles.inputRow}>
-            <TouchableOpacity 
-              onPress={handleImagePick} 
+            <TouchableOpacity
+              onPress={handleImagePick}
               style={styles.plusBtn}
             >
               <Ionicons name="add" size={28} color={Colors.gray200} />
             </TouchableOpacity>
-            
+
             <TextInput
               style={styles.inputField}
               placeholder="Type prompt..."
@@ -634,9 +639,9 @@ export default function TutorScreen() {
             />
 
             {!inputText.trim() && (
-               <TouchableOpacity onPress={startListening} style={styles.micBtn}>
-                 <Ionicons name="mic-outline" size={24} color={Colors.gray200} />
-               </TouchableOpacity>
+              <TouchableOpacity onPress={startListening} style={styles.micBtn}>
+                <Ionicons name="mic-outline" size={24} color={Colors.gray200} />
+              </TouchableOpacity>
             )}
 
             {inputText.trim() ? (

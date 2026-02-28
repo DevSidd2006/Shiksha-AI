@@ -15,24 +15,24 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons, FontAwesome5, Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { DashboardService, DashboardStats } from '@/services/dashboardService';
-import { AchievementService } from '@/services/achievementService';
-import { getProfile } from '@/storage/profileStore';
-import { Colors, Spacing, BorderRadius, Fonts, Shadows } from '@/styles/designSystem';
+import { DashboardService, DashboardStats } from '@/features/progress';
+import { AchievementService } from '@/features/progress';
+import { getProfile } from '@/features/user';
+import { Colors, Spacing, BorderRadius, Fonts, Shadows } from '@/shared';
 
 // Import data with fallback
 let CLASS_9_SCIENCE: any[] = [];
 let CLASS_9_SCIENCE_QUIZ: any[] = [];
 
 try {
-  const scienceData = require('@/data/class9Science');
+  const scienceData = require('@/features/content');
   CLASS_9_SCIENCE = scienceData.CLASS_9_SCIENCE || [];
 } catch (error) {
   console.error('Failed to load flashcard data:', error);
 }
 
 try {
-  const quizData = require('@/data/class9ScienceQuiz');
+  const quizData = require('@/features/content');
   CLASS_9_SCIENCE_QUIZ = quizData.CLASS_9_SCIENCE_QUIZ || [];
 } catch (error) {
   console.error('Failed to load quiz data:', error);

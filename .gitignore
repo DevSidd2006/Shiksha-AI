@@ -1,15 +1,70 @@
 # Shiksha AI Git Ignore
-# Last Updated: 2026-02-01
+# Last Updated: 2026-02-28
+
+# Dependencies
 node_modules/
+backend/node_modules/
+
+# Expo
 .expo/
 dist/
+web-build/
+.expo-shared/
+
+# Build outputs
+android/app/build/
+android/build/
+android/.gradle/
+android/app/.cxx/
+ios/build/
+ios/Pods/
+ios/DerivedData/
+
+# Environment files (keep .env.example)
+.env
+.env.local
+.env.*.local
+backend/.env
+
+# Logs
 npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.log
+
+# Keys & Certificates
 *.jks
 *.p8
 *.p12
 *.key
 *.mobileprovision
 *.orig.*
-web-build/
-.env
-backend/.env
+google-services.json
+GoogleService-Info.plist
+
+# OS files
+.DS_Store
+.DS_Store?
+Thumbs.db
+*.swp
+*.swo
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Temporary files
+tmp/
+temp/
+.cache/
+
+# Native build artifacts (llama.cpp compiled output)
+android/app/src/main/cpp/llama.cpp/build/
+*.so
+*.a
+*.o
+*.dylib
+
+# Test coverage
+coverage/

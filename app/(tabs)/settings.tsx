@@ -15,10 +15,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons, Ionicons, FontAwesome5, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { deleteAllChats } from '@/storage/chatStore';
-import { getOfflineMode, setOfflineMode, getPreferredLanguage, setPreferredLanguage } from '@/storage/settingsStore';
-import { getProfile, updateGrade, CLASS_OPTIONS } from '@/storage/profileStore';
-import { Colors, Spacing, BorderRadius, Fonts, Shadows } from '@/styles/designSystem';
+import { deleteAllChats } from '@/features/chat';
+import { getOfflineMode, setOfflineMode, getPreferredLanguage, setPreferredLanguage } from '@/features/user';
+import { getProfile, updateGrade, CLASS_OPTIONS } from '@/features/user';
+import { Colors, Spacing, BorderRadius, Fonts, Shadows } from '@/shared';
 
 const LANGUAGES = [
   'English',

@@ -3,12 +3,12 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ActivityIndi
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Spacing, BorderRadius, Fonts, Shadows } from '@/styles/designSystem';
-import { getModels, downloadModel, deleteModelFile, Model, hasDownloadedModel, getActiveModel, setActiveModel } from '@/services/modelDownloadService';
-import { llamaBridge } from '@/services/nativeLlama';
-import { setOfflineModelPath } from '@/services/offlineTutor';
+import { Colors, Spacing, BorderRadius, Fonts, Shadows } from '@/shared';
+import { getModels, downloadModel, deleteModelFile, Model, hasDownloadedModel, getActiveModel, setActiveModel } from '@/features/ai';
+import { llamaBridge } from '@/features/ai';
+import { setOfflineModelPath } from '@/features/ai';
 import { useRouter } from 'expo-router';
-import { initializeDatabase } from '@/database/init';
+import { initializeDatabase } from '@/core';
 
 export default function ModelManagerScreen() {
   const router = useRouter();
@@ -52,12 +52,12 @@ export default function ModelManagerScreen() {
       await llamaBridge.ensure(path);
       await loadModels();
       Alert.alert(
-        'Success', 
+        'Success',
         `${model.name} is ready for learning!`,
         [
-          { 
-            text: 'Start Learning', 
-            onPress: () => router.replace('/(tabs)/dashboard') 
+          {
+            text: 'Start Learning',
+            onPress: () => router.replace('/(tabs)/dashboard')
           }
         ]
       );
@@ -75,13 +75,13 @@ export default function ModelManagerScreen() {
       `Are you sure you want to delete ${model.name}?`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Delete', 
-          style: 'destructive', 
+        {
+          text: 'Delete',
+          style: 'destructive',
           onPress: async () => {
             await deleteModelFile(model.id);
             loadModels();
-          } 
+          }
         }
       ]
     );
@@ -121,24 +121,40 @@ export default function ModelManagerScreen() {
 
         {item.status === 'downloaded' ? (
           <View style={styles.actionColumn}>
-             <TouchableOpacity onPress={() => handleApply(item)} style={styles.applyButton}>
-               <Text style={styles.applyText}>Use</Text>
-             </TouchableOpacity>
-             <TouchableOpacity onPress={() => handleDelete(item)} style={styles.deleteButton}>
-               <Ionicons name="trash-outline" size={20} color={Colors.error} />
-             </TouchableOpacity>
+            <TouchableOpacity onPress={() => handleApply(item)} style={styles.applyButton}>
+              <Text style={styles.applyText}>Use</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={async () => {
+              const success = await llamaBridge.ensure(item.localPath!);
+              if (success) Alert.alert('Success', `Model Loaded to RAM`);
+              else Alert.alert('Error', 'Failed to load model.');
+            }} style={[styles.applyButton, { backgroundColor: Colors.primary }]}>
+              <Text style={styles.applyText}>Load</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={async () => {
+              await llamaBridge.stop();
+              Alert.alert('Success', `Model unmounted from RAM`);
+            }} style={[styles.applyButton, { backgroundColor: Colors.warning }]}>
+              <Text style={styles.applyText}>Unload</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => handleDelete(item)} style={styles.deleteButton}>
+              <Ionicons name="trash-outline" size={20} color={Colors.error} />
+            </TouchableOpacity>
           </View>
         ) : item.status === 'downloading' ? (
           <View style={styles.downloadProgress}>
-             <ActivityIndicator size="small" color={Colors.primary} />
+            <ActivityIndicator size="small" color={Colors.primary} />
           </View>
         ) : (
           <TouchableOpacity onPress={() => handleDownload(item)} style={styles.downloadButton}>
-             <Ionicons name="cloud-download-outline" size={24} color={Colors.white} />
+            <Ionicons name="cloud-download-outline" size={24} color={Colors.white} />
           </TouchableOpacity>
         )}
       </View>
-      
+
       {downloadingId === item.id && (
         <View style={styles.progressBarContainer}>
           <View style={styles.progressTrack}>
@@ -162,8 +178,8 @@ export default function ModelManagerScreen() {
           <View>
             <Text style={styles.headerTitle}>{isFirstTime ? 'Setup Your Brain' : 'Study Models'}</Text>
             <Text style={styles.headerSubtitle}>
-              {isFirstTime 
-                ? 'Download a model to start learning offline' 
+              {isFirstTime
+                ? 'Download a model to start learning offline'
                 : 'Manage your on-device AI models'}
             </Text>
           </View>

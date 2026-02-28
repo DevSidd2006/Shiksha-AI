@@ -33,7 +33,15 @@
       }
     },
     "plugins": [
-      "expo-dev-client"
+      "expo-dev-client",
+      [
+        "llama.rn",
+        {
+          "forceCxx20": true,
+          "enableOpenCL": true
+        }
+      ],
+      "./scripts/withLargeHeap.js"
     ],
     "scheme": "shikshaai",
     "extra": {

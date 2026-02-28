@@ -14,10 +14,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { getAllChats, deleteAllChats, getFullChat, deleteChat } from '@/storage/chatStore';
+import { getAllChats, deleteAllChats, getFullChat, deleteChat } from '@/features/chat';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
-import { Colors, Fonts, Shadows, Spacing, BorderRadius } from '@/styles/designSystem';
+import { Colors, Fonts, Shadows, Spacing, BorderRadius } from '@/shared';
 
 const { width } = Dimensions.get('window');
 

@@ -14,7 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, FontAwesome5, Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Spacing, BorderRadius } from '@/styles/designSystem';
+import { Colors, Spacing, BorderRadius } from '@/shared';
 import { useRouter } from 'expo-router';
 import {
   calculateStudyStats,
@@ -22,7 +22,7 @@ import {
   getMotivationalMessage,
   StudySession,
   StudentNote,
-} from '@/data/studyProgress';
+} from '@/features/content';
 
 const { width } = Dimensions.get('window');
 

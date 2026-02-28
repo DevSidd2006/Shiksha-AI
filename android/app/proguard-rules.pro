@@ -12,7 +12,3 @@
 -keep class com.facebook.react.turbomodule.** { *; }
 
 # Add any project specific keep options here:
-
-# Expo modules – prevent R8 from stripping/renaming types used by the JS bridge
--keep class expo.modules.** { *; }
--dontwarn expo.modules.**

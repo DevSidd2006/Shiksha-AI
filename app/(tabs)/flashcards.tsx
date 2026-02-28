@@ -11,10 +11,10 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CLASS_9_SCIENCE, getCardsByChapter, Flashcard, Chapter } from '@/data/class9Science';
+import { CLASS_9_SCIENCE, getCardsByChapter, Flashcard, Chapter } from '@/features/content';
 import { MaterialIcons, FontAwesome5, Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Spacing, BorderRadius } from '@/styles/designSystem';
+import { Colors, Spacing, BorderRadius } from '@/shared';
 
 const { width } = Dimensions.get('window');
 

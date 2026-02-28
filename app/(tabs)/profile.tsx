@@ -16,8 +16,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
-import { getProfile, updateProfile } from '@/storage/profileStore';
-import { Colors, Fonts, Shadows, Spacing, BorderRadius } from '@/styles/designSystem';
+import { getProfile, updateProfile } from '@/features/user';
+import { Colors, Fonts, Shadows, Spacing, BorderRadius } from '@/shared';
 
 const { width } = Dimensions.get('window');
 

@@ -14,9 +14,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
-import { CLASS_9_SCIENCE, Chapter } from '@/data/class9Science';
-import { CLASS_9_SCIENCE_QUIZ, QuizQuestion } from '@/data/class9ScienceQuiz';
-import { Colors, Fonts, Shadows, Spacing, BorderRadius } from '@/styles/designSystem';
+import { CLASS_9_SCIENCE, Chapter } from '@/features/content';
+import { CLASS_9_SCIENCE_QUIZ, QuizQuestion } from '@/features/content';
+import { Colors, Fonts, Shadows, Spacing, BorderRadius } from '@/shared';
 
 const { width } = Dimensions.get('window');
 

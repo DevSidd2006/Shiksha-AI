@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { Redirect } from 'expo-router';
-import { isAuthenticated } from '@/storage/authStore';
-import { AuthScreen } from '@/components/AuthScreen';
-import { getActiveModelPath, hasDownloadedModel } from '@/services/modelDownloadService';
-import { setOfflineModelPath } from '@/services/offlineTutor';
-import { llamaBridge } from '@/services/nativeLlama';
-import { initializeDatabase } from '@/database/init';
+import { isAuthenticated } from '@/features/user';
+import { AuthScreen } from '@/features/auth';
+import { getActiveModelPath, hasDownloadedModel } from '@/features/ai';
+import { setOfflineModelPath } from '@/features/ai';
+import { llamaBridge } from '@/features/ai';
+import { initializeDatabase } from '@/core';
 
 export default function Index() {
   const [isAuth, setIsAuth] = useState<boolean | null>(null);
@@ -66,7 +66,7 @@ export default function Index() {
   }
 
   if (isAuth && !hasModel) {
-    return <Redirect href="/model-manager" />;
+    return <Redirect href="/setup-choice" />;
   }
 
   return <Redirect href="/(tabs)/dashboard" />;

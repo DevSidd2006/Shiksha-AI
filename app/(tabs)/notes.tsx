@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Spacing, BorderRadius } from '@/styles/designSystem';
+import { Colors, Spacing, BorderRadius } from '@/shared';
 
 // Import data with fallback
 let CLASS_9_SCIENCE_NOTES: any[] = [];
@@ -19,7 +19,7 @@ let getChapterNotes: any = () => undefined;
 let getAllCategories: any = () => [];
 
 try {
-  const notesData = require('@/data/class9ScienceNotes');
+  const notesData = require('@/features/content');
   CLASS_9_SCIENCE_NOTES = notesData.CLASS_9_SCIENCE_NOTES || [];
   getChapterNotes = notesData.getChapterNotes || (() => undefined);
   getAllCategories = notesData.getAllCategories || (() => []);
