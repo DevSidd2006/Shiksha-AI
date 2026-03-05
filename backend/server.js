@@ -335,8 +335,9 @@ app.post('/ocr', async (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Shiksha AI Backend running on http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Shiksha AI Backend running on http://0.0.0.0:${PORT}`);
+  console.log(`📚 Accessible at http://192.168.0.109:${PORT} (network)`);
   console.log(`📚 Local Ollama Engine: ${OLLAMA_MODEL}`);
   console.log(`📚 Ready to help students learn!`);
 });

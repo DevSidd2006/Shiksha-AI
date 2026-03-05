@@ -21,6 +21,8 @@ const API_URL = __DEV__
   ? getDevBaseUrl()
   : (process.env.EXPO_PUBLIC_API_URL || 'https://shikshaai-backend.vercel.app');
 
+console.log('🔗 API URL configured:', API_URL);
+
 export interface TutorResponse {
   answer: string;
   timestamp: string;
