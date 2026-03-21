@@ -12,6 +12,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // ---------------------------------------------------------------------------
 
 const SYNC_IN_PROGRESS_KEY = 'shiksha_ai_sync_in_progress';
+let isSyncingInMemory = false;
 
 export const SyncManager = {
 
@@ -21,6 +22,14 @@ export const SyncManager = {
     },
 
     async runSync() {
+        if (!supabase) {
+            return;
+        }
+
+        if (isSyncingInMemory) {
+            return;
+        }
+
         // Prevent overlapping sync processes
         const isSyncing = await AsyncStorage.getItem(SYNC_IN_PROGRESS_KEY);
         if (isSyncing === 'true') return;
@@ -31,6 +40,7 @@ export const SyncManager = {
         }
 
         try {
+            isSyncingInMemory = true;
             await AsyncStorage.setItem(SYNC_IN_PROGRESS_KEY, 'true');
             console.log('Starting Supabase Sync...');
 
@@ -45,10 +55,17 @@ export const SyncManager = {
             console.error('Sync failed:', error);
         } finally {
             await AsyncStorage.setItem(SYNC_IN_PROGRESS_KEY, 'false');
+            isSyncingInMemory = false;
         }
     },
 
     async pushLocalChanges() {
+        if (!supabase) {
+            return;
+        }
+
+        const supabaseClient: any = supabase;
+
         // Fetch all pending unsynced records
         const unsyncedOperations = await db.getAllAsync<{
             id: string;
@@ -73,13 +90,13 @@ export const SyncManager = {
                 if (op.operation === 'INSERT' || op.operation === 'UPDATE') {
                     // Supabase upsert nicely handles both inserting new records and updating existing ones
                     // assuming the primary key 'id' exists.
-                    const { error } = await supabase
+                    const { error } = await supabaseClient
                         .from(tableName)
                         .upsert(payload, { onConflict: 'id' });
 
                     if (error) throw error;
                 } else if (op.operation === 'DELETE') {
-                    const { error } = await supabase
+                    const { error } = await supabaseClient
                         .from(tableName)
                         .delete()
                         .match({ id: op.record_id });

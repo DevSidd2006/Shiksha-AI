@@ -1,356 +1,440 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Image,
   Alert,
   Switch,
-  Platform,
-  Dimensions,
   StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
-import { getProfile, updateProfile } from '@/features/user';
-import { Colors, Fonts, Shadows, Spacing, BorderRadius } from '@/shared';
+import { getProfile } from '@/features/user';
+import { useAppTheme } from '@/shared';
 
-const { width } = Dimensions.get('window');
+interface ThemePalette {
+  surface: string;
+  panel: string;
+  panelSoft: string;
+  border: string;
+  text: string;
+  textMuted: string;
+  accent: string;
+  headerGradient: [string, string];
+  cardGradient: [string, string];
+  chipBg: string;
+}
+
+const darkTheme: ThemePalette = {
+  surface: '#06070B',
+  panel: '#11131A',
+  panelSoft: '#191D27',
+  border: 'rgba(255,255,255,0.09)',
+  text: '#F7F9FF',
+  textMuted: '#9AA5BD',
+  accent: '#2DDCFF',
+  headerGradient: ['#0C1020', '#11131A'],
+  cardGradient: ['#151A27', '#10131A'],
+  chipBg: '#1E2A52',
+};
+
+const lightTheme: ThemePalette = {
+  surface: '#F4F6FB',
+  panel: '#FFFFFF',
+  panelSoft: '#ECF1FA',
+  border: 'rgba(10,14,28,0.12)',
+  text: '#0E1322',
+  textMuted: '#65708A',
+  accent: '#155EEF',
+  headerGradient: ['#EEF3FF', '#FFFFFF'],
+  cardGradient: ['#FFFFFF', '#F3F7FF'],
+  chipBg: '#E4ECFF',
+};
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { mode, toggleTheme } = useAppTheme();
+  const isDark = mode === 'dark';
+  const theme = isDark ? darkTheme : lightTheme;
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
   const [profile, setProfile] = useState<any>(null);
   const [notifications, setNotifications] = useState(true);
   const [studyReminders, setStudyReminders] = useState(true);
 
   useEffect(() => {
-    loadProfile();
+    (async () => {
+      try {
+        const data = await getProfile();
+        if (data) setProfile(data);
+      } catch (error) {
+        console.error('Error loading profile:', error);
+      }
+    })();
   }, []);
 
-  const loadProfile = async () => {
-    try {
-      const data = await getProfile();
-      if (data) setProfile(data);
-    } catch (error) {
-      console.error('Error loading profile:', error);
-    }
-  };
-
   const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to log out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Logout', 
-          style: 'destructive',
-          onPress: () => {
-            // We should clear the store here in a real app
-            router.replace('/');
-          }
-        },
-      ]
-    );
+    Alert.alert('Logout', 'Are you sure you want to log out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: () => router.replace('/'),
+      },
+    ]);
   };
 
   const STATS = [
-    { label: 'Chapters', value: '12', icon: 'book', color: '#6366F1' },
-    { label: 'Quizzes', value: '45', icon: 'check-circle', color: '#10B981' },
-    { label: 'Streak', value: '7', icon: 'fire', color: '#F59E0B' },
+    { label: 'Chapters', value: '12', icon: 'book' as const, color: '#6366F1' },
+    { label: 'Quizzes', value: '45', icon: 'check-circle' as const, color: '#10B981' },
+    { label: 'Streak', value: '7', icon: 'fire' as const, color: '#F59E0B' },
   ];
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="light-content" />
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Profile Header */}
-        <LinearGradient
-          colors={['#6366F1', '#4F46E5']}
-          style={styles.header}
-        >
-          <View style={styles.headerContent}>
-            <View style={styles.avatarContainer}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
-                  {profile?.name ? profile.name.charAt(0).toUpperCase() : 'S'}
-                </Text>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.contentContainer}>
+        <LinearGradient colors={theme.headerGradient as any} style={styles.header}>
+          <View style={styles.headerTop}>
+            <View style={styles.brandWrap}>
+              <View style={styles.brandIcon}>
+                <Ionicons name="person" size={15} color={theme.accent} />
               </View>
-              <TouchableOpacity style={styles.editAvatarBtn}>
-                <Ionicons name="camera" size={18} color={Colors.white} />
-              </TouchableOpacity>
+              <Text style={styles.brandText}>Account</Text>
             </View>
-            <Text style={styles.userName}>{profile?.name || 'Student'}</Text>
-            <Text style={styles.userGrade}>{profile?.grade || 'Class 8'}</Text>
+
+            <TouchableOpacity style={styles.iconBtn} onPress={toggleTheme}>
+              <Ionicons name={isDark ? 'sunny' : 'moon'} size={16} color={theme.text} />
+            </TouchableOpacity>
           </View>
+
+          <LinearGradient colors={theme.cardGradient as any} style={styles.profileCard}>
+            <View style={styles.avatarWrap}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>{profile?.name ? profile.name.charAt(0).toUpperCase() : 'S'}</Text>
+              </View>
+            </View>
+            <View style={styles.profileMeta}>
+              <Text style={styles.userName}>{profile?.name || 'Student'}</Text>
+              <Text style={styles.userGrade}>{profile?.grade || 'Class 8'}</Text>
+            </View>
+          </LinearGradient>
         </LinearGradient>
 
-        <View style={styles.content}>
-          {/* Stats Section */}
+        <View style={styles.section}>
           <View style={styles.statsCard}>
-            {STATS.map((stat, index) => (
-              <View key={index} style={styles.statItem}>
-                <View style={[styles.statIconBg, { backgroundColor: stat.color + '20' }]}>
-                  <FontAwesome5 name={stat.icon} size={18} color={stat.color} />
+            {STATS.map((stat) => (
+              <View key={stat.label} style={styles.statItem}>
+                <View style={[styles.statIconBg, { backgroundColor: `${stat.color}22` }]}>
+                  <FontAwesome5 name={stat.icon} size={14} color={stat.color} />
                 </View>
                 <Text style={styles.statValue}>{stat.value}</Text>
                 <Text style={styles.statLabel}>{stat.label}</Text>
               </View>
             ))}
           </View>
+        </View>
 
-          {/* Settings Section */}
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Learning Preferences</Text>
-          <View style={styles.settingsGroup}>
-            <View style={styles.settingItem}>
-              <View style={styles.settingInfo}>
-                <View style={[styles.settingIconBg, { backgroundColor: '#EEF2FF' }]}>
-                  <Ionicons name="notifications" size={20} color={Colors.primary} />
+          <View style={styles.groupCard}>
+            <View style={styles.toggleRow}>
+              <View style={styles.rowLeft}>
+                <View style={[styles.rowIcon, { backgroundColor: isDark ? '#17223F' : '#E7EEFF' }]}>
+                  <Ionicons name="notifications-outline" size={16} color={theme.accent} />
                 </View>
-                <Text style={styles.settingLabel}>Notifications</Text>
+                <Text style={styles.rowText}>Notifications</Text>
               </View>
               <Switch
                 value={notifications}
                 onValueChange={setNotifications}
-                trackColor={{ false: '#E2E8F0', true: '#A5B4FC' }}
-                thumbColor={notifications ? Colors.primary : '#F8FAFC'}
+                trackColor={{ false: '#3A4255', true: '#7DA9FF' }}
+                thumbColor={notifications ? '#FFFFFF' : '#D1D5DB'}
               />
             </View>
 
-            <View style={styles.settingItem}>
-              <View style={styles.settingInfo}>
-                <View style={[styles.settingIconBg, { backgroundColor: '#F0FDF4' }]}>
-                  <MaterialIcons name="alarm" size={20} color={Colors.success} />
+            <View style={styles.separator} />
+
+            <View style={styles.toggleRow}>
+              <View style={styles.rowLeft}>
+                <View style={[styles.rowIcon, { backgroundColor: isDark ? '#173321' : '#DCFCE7' }]}>
+                  <MaterialIcons name="alarm" size={16} color="#16A34A" />
                 </View>
-                <Text style={styles.settingLabel}>Study Reminders</Text>
+                <Text style={styles.rowText}>Study Reminders</Text>
               </View>
               <Switch
                 value={studyReminders}
                 onValueChange={setStudyReminders}
-                trackColor={{ false: '#E2E8F0', true: '#A5B4FC' }}
-                thumbColor={studyReminders ? Colors.primary : '#F8FAFC'}
+                trackColor={{ false: '#3A4255', true: '#7DA9FF' }}
+                thumbColor={studyReminders ? '#FFFFFF' : '#D1D5DB'}
               />
             </View>
           </View>
+        </View>
 
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Account & App</Text>
-          <View style={styles.settingsGroup}>
-            <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/settings')}>
-              <View style={styles.settingInfo}>
-                <View style={[styles.settingIconBg, { backgroundColor: '#F8FAFC' }]}>
-                  <Ionicons name="settings" size={20} color={Colors.gray600} />
-                </View>
-                <Text style={styles.settingLabel}>App Settings</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={Colors.gray400} />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/history')}>
-              <View style={styles.settingInfo}>
-                <View style={[styles.settingIconBg, { backgroundColor: '#F8FAFC' }]}>
-                  <Ionicons name="time" size={20} color={Colors.gray600} />
-                </View>
-                <Text style={styles.settingLabel}>Chat History</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={Colors.gray400} />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/notes')}>
-              <View style={styles.settingInfo}>
-                <View style={[styles.settingIconBg, { backgroundColor: '#F8FAFC' }]}>
-                  <Ionicons name="document-text" size={20} color={Colors.gray600} />
-                </View>
-                <Text style={styles.settingLabel}>My Study Notes</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={Colors.gray400} />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.menuItem}>
-              <View style={styles.settingInfo}>
-                <View style={[styles.settingIconBg, { backgroundColor: '#F8FAFC' }]}>
-                  <Ionicons name="person" size={20} color={Colors.gray600} />
-                </View>
-                <Text style={styles.settingLabel}>Edit Profile</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={Colors.gray400} />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.menuItem}>
-              <View style={styles.settingInfo}>
-                <View style={[styles.settingIconBg, { backgroundColor: '#F8FAFC' }]}>
-                  <Ionicons name="shield-checkmark" size={20} color={Colors.gray600} />
-                </View>
-                <Text style={styles.settingLabel}>Privacy & Security</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={Colors.gray400} />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
-              <View style={styles.settingInfo}>
-                <View style={[styles.settingIconBg, { backgroundColor: '#FEF2F2' }]}>
-                  <Ionicons name="log-out" size={20} color={Colors.error} />
-                </View>
-                <Text style={[styles.settingLabel, { color: Colors.error }]}>Log Out</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color={Colors.gray400} />
-            </TouchableOpacity>
+          <View style={styles.groupCard}>
+            <MenuRow icon="settings-outline" label="App Settings" onPress={() => router.push('/settings')} theme={theme} />
+            <View style={styles.separator} />
+            <MenuRow icon="time-outline" label="Chat History" onPress={() => router.push('/history')} theme={theme} />
+            <View style={styles.separator} />
+            <MenuRow icon="document-text-outline" label="My Study Notes" onPress={() => router.push('/notes')} theme={theme} />
+            <View style={styles.separator} />
+            <MenuRow icon="person-outline" label="Edit Profile" onPress={() => Alert.alert('Coming soon')} theme={theme} />
+            <View style={styles.separator} />
+            <MenuRow icon="shield-checkmark-outline" label="Privacy & Security" onPress={() => Alert.alert('Coming soon')} theme={theme} />
+            <View style={styles.separator} />
+            <MenuRow icon="log-out-outline" label="Log Out" onPress={handleLogout} destructive theme={theme} />
           </View>
+        </View>
 
-          <View style={styles.versionContainer}>
-            <Text style={styles.versionText}>Shiksha AI v1.0.0</Text>
-            <Text style={styles.versionText}>Made with ❤️ for students</Text>
-          </View>
+        <View style={styles.versionWrap}>
+          <Text style={styles.versionText}>Shiksha AI v1.0.0</Text>
+          <Text style={styles.versionText}>Built for focused learning</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  header: {
-    paddingBottom: 40,
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
-  },
-  headerContent: {
-    alignItems: 'center',
-    paddingTop: 20,
-  },
-  avatarContainer: {
-    position: 'relative',
-    marginBottom: 15,
-  },
-  avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.5)',
-  },
-  avatarText: {
-    fontSize: 40,
-    fontFamily: Fonts.bold,
-    color: Colors.white,
-  },
-  editAvatarBtn: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: '#6366F1',
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 3,
-    borderColor: '#4F46E5',
-    elevation: 4,
-  },
-  userName: {
-    fontSize: 24,
-    fontFamily: Fonts.bold,
-    color: Colors.white,
-  },
-  userGrade: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 4,
-  },
-  content: {
-    padding: 20,
-    marginTop: -30,
-  },
-  statsCard: {
-    flexDirection: 'row',
-    backgroundColor: Colors.white,
-    borderRadius: 24,
-    padding: 20,
-    ...Shadows.md,
-    marginBottom: 25,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statIconBg: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  statValue: {
-    fontSize: 18,
-    fontFamily: Fonts.bold,
-    color: Colors.gray900,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: Colors.gray500,
-    marginTop: 2,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontFamily: Fonts.bold,
-    color: Colors.gray800,
-    marginBottom: 15,
-    marginLeft: 5,
-  },
-  settingsGroup: {
-    backgroundColor: Colors.white,
-    borderRadius: 24,
-    padding: 10,
-    marginBottom: 25,
-    ...Shadows.sm,
-  },
-  settingItem: {
+function MenuRow({
+  icon,
+  label,
+  onPress,
+  theme,
+  destructive,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+  theme: ThemePalette;
+  destructive?: boolean;
+}) {
+  const textColor = destructive ? '#EF4444' : theme.text;
+  const iconColor = destructive ? '#EF4444' : theme.textMuted;
+
+  return (
+    <TouchableOpacity style={menuStyles.row} onPress={onPress}>
+      <View style={menuStyles.left}>
+        <View style={[menuStyles.iconWrap, { backgroundColor: theme.panelSoft }]}>
+          <Ionicons name={icon} size={16} color={iconColor} />
+        </View>
+        <Text style={[menuStyles.label, { color: textColor }]}>{label}</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={16} color={theme.textMuted} />
+    </TouchableOpacity>
+  );
+}
+
+const menuStyles = StyleSheet.create({
+  row: {
+    minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 12,
   },
-  menuItem: {
+  left: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 12,
+    gap: 10,
   },
-  settingInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  settingIconBg: {
-    width: 38,
-    height: 38,
+  iconWrap: {
+    width: 32,
+    height: 32,
     borderRadius: 10,
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 15,
   },
-  settingLabel: {
-    fontSize: 15,
-    fontFamily: Fonts.medium,
-    color: Colors.gray800,
-  },
-  versionContainer: {
-    alignItems: 'center',
-    paddingVertical: 20,
-  },
-  versionText: {
-    fontSize: 12,
-    color: Colors.gray400,
-    lineHeight: 18,
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
+
+const createStyles = (theme: ThemePalette) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.surface,
+    },
+    contentContainer: {
+      paddingBottom: 28,
+    },
+    header: {
+      paddingHorizontal: 16,
+      paddingBottom: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+    },
+    headerTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingTop: 4,
+      marginBottom: 12,
+    },
+    brandWrap: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    brandIcon: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.chipBg,
+    },
+    brandText: {
+      color: theme.text,
+      fontSize: 16,
+      fontWeight: '700',
+    },
+    iconBtn: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.panel,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    profileCard: {
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: theme.border,
+      padding: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    avatarWrap: {
+      borderRadius: 999,
+      padding: 2,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    avatar: {
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: theme.chipBg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    avatarText: {
+      color: theme.text,
+      fontSize: 24,
+      fontWeight: '800',
+    },
+    profileMeta: {
+      flex: 1,
+    },
+    userName: {
+      color: theme.text,
+      fontSize: 18,
+      fontWeight: '800',
+    },
+    userGrade: {
+      color: theme.textMuted,
+      fontSize: 13,
+      marginTop: 4,
+      fontWeight: '600',
+    },
+    section: {
+      paddingHorizontal: 16,
+      paddingTop: 14,
+      gap: 10,
+    },
+    statsCard: {
+      backgroundColor: theme.panel,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 16,
+      padding: 12,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      gap: 8,
+    },
+    statItem: {
+      flex: 1,
+      alignItems: 'center',
+      gap: 6,
+    },
+    statIconBg: {
+      width: 34,
+      height: 34,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    statValue: {
+      color: theme.text,
+      fontSize: 16,
+      fontWeight: '800',
+    },
+    statLabel: {
+      color: theme.textMuted,
+      fontSize: 11,
+      fontWeight: '600',
+    },
+    sectionTitle: {
+      color: theme.text,
+      fontSize: 15,
+      fontWeight: '800',
+    },
+    groupCard: {
+      backgroundColor: theme.panel,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 16,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    toggleRow: {
+      minHeight: 52,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    rowLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    rowIcon: {
+      width: 32,
+      height: 32,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    rowText: {
+      color: theme.text,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    separator: {
+      height: 1,
+      backgroundColor: theme.border,
+    },
+    versionWrap: {
+      paddingHorizontal: 16,
+      paddingTop: 20,
+      alignItems: 'center',
+      gap: 2,
+    },
+    versionText: {
+      color: theme.textMuted,
+      fontSize: 11,
+      fontWeight: '600',
+    },
+  });

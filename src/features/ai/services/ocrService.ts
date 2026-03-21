@@ -9,17 +9,40 @@ export interface OCRResult {
   provider: 'backend-tesseract' | 'vision-api';
 }
 
-// Get backend URL
-const getBackendUrl = () => {
+// Get preferred configured backend URL
+const getConfiguredBackendUrl = () => {
+  const configuredUrl =
+    Constants.expoConfig?.extra?.apiUrl ||
+    process.env.EXPO_PUBLIC_API_URL;
+
+  if (typeof configuredUrl === 'string' && configuredUrl.trim().length > 0) {
+    return configuredUrl.replace(/\/+$/, '');
+  }
+
+  return null;
+};
+
+const getDevBackendUrl = () => {
   const hostUri = Constants.expoConfig?.hostUri;
   if (hostUri) {
     const host = hostUri.split(':')[0];
     return `http://${host}:3000`;
   }
+
   if (Platform.OS === 'android') {
     return 'http://10.0.2.2:3000';
   }
+
   return 'http://localhost:3000';
+};
+
+const getOCRBackendCandidates = (): string[] => {
+  const candidates = [getConfiguredBackendUrl(), __DEV__ ? getDevBackendUrl() : null]
+    .filter((url): url is string => typeof url === 'string' && url.trim().length > 0)
+    .map((url) => url.replace(/\/+$/, ''));
+
+  // De-duplicate while preserving order.
+  return [...new Set(candidates)];
 };
 
 export class OCRService {
@@ -62,22 +85,51 @@ export class OCRService {
         });
       }
 
-      // Send to backend OCR endpoint
-      const response = await fetch(`${getBackendUrl()}/ocr`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: base64Image }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`OCR request failed: ${response.status}`);
+      const baseUrls = getOCRBackendCandidates();
+      if (baseUrls.length === 0) {
+        throw new Error('No OCR backend URL could be resolved');
       }
 
-      const data = await response.json();
+      let data: any = null;
+      let lastErrorMessage = '';
+      let usedEndpoint = '';
+
+      for (const baseUrl of baseUrls) {
+        const endpoint = `${baseUrl}/ocr`;
+        try {
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: base64Image }),
+          });
+
+          if (!response.ok) {
+            lastErrorMessage = `OCR request failed: ${response.status} at ${endpoint}`;
+            // 404 commonly means wrong backend base URL. Try the next candidate.
+            if (response.status === 404) {
+              continue;
+            }
+            throw new Error(lastErrorMessage);
+          }
+
+          data = await response.json();
+          usedEndpoint = endpoint;
+          break;
+        } catch (error: any) {
+          lastErrorMessage = error?.message || `OCR request failed at ${endpoint}`;
+        }
+      }
+
+      if (!data) {
+        throw new Error(
+          lastErrorMessage ||
+          `OCR request failed on all endpoints: ${baseUrls.map((url) => `${url}/ocr`).join(', ')}`
+        );
+      }
       
       const ocrResult: OCRResult = {
         text: this.cleanOCRText(data.text || ''),
-        confidence: data.confidence || 0.8,
+        confidence: typeof data.confidence === 'number' ? data.confidence : 0.8,
         language: data.language || 'en',
         provider: 'backend-tesseract',
       };
@@ -87,12 +139,14 @@ export class OCRService {
         this.localOCRCache.set(imageUri, ocrResult);
       }
 
-      console.log(`OCR completed - ${ocrResult.text.split(/\s+/).length} words extracted`);
+      console.log(`OCR completed via ${usedEndpoint} - ${ocrResult.text.split(/\s+/).length} words extracted`);
       return ocrResult;
 
     } catch (error: any) {
       console.error('OCR Error:', error);
-      throw new Error(`OCR failed: ${error.message}. Ensure the backend server is running.`);
+      throw new Error(
+        `OCR failed: ${error.message}. Ensure the backend server is running and EXPO_PUBLIC_API_URL points to a reachable backend on this device.`
+      );
     }
   }
 
@@ -132,7 +186,8 @@ export class OCRService {
     message: string;
     wordCount: number;
   } {
-    const wordCount = text.trim().split(/\s+/).length;
+    const trimmedText = text.trim();
+    const wordCount = trimmedText ? trimmedText.split(/\s+/).length : 0;
     const minWords = 3;
 
     if (wordCount < minWords) {
@@ -150,4 +205,3 @@ export class OCRService {
     };
   }
 }
-

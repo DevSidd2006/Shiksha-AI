@@ -5,6 +5,7 @@ import * as NavigationBar from 'expo-navigation-bar';
 import { llamaBridge } from '@/features/ai';
 import { SyncManager } from '@/core';
 import NetInfo from '@react-native-community/netinfo';
+import { AppThemeProvider } from '@/shared';
 
 export default function RootLayout() {
   const appState = useRef(AppState.currentState);
@@ -55,11 +56,13 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="setup-choice" />
-      <Stack.Screen name="model-manager" />
-      <Stack.Screen name="(tabs)" />
-    </Stack>
+    <AppThemeProvider>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="setup-choice" />
+        <Stack.Screen name="model-manager" />
+        <Stack.Screen name="(tabs)" />
+      </Stack>
+    </AppThemeProvider>
   );
 }

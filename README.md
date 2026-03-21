@@ -38,6 +38,7 @@ Create `.env` in project root:
 ```env
 EXPO_PUBLIC_API_URL=http://10.0.2.2:3000
 ```
+Use your machine's LAN URL instead of `10.0.2.2` when testing on a physical device, for example `http://192.168.1.25:3000`.
 
 ### 3. Start local model runtime
 ```bash
@@ -98,6 +99,7 @@ Legacy detailed docs kept for reference:
 - Model missing: run `ollama pull qwen2.5:1.5b`
 - Backend errors: confirm `npm run backend` is running on port `3000`
 - Android emulator networking: use `10.0.2.2` instead of `localhost`
+- Physical-device OCR/vision requests: set `EXPO_PUBLIC_API_URL` to your computer's LAN address, not `localhost`
 
 ## License
 MIT

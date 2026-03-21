@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -9,12 +9,10 @@ import {
   Modal,
   TextInput,
   FlatList,
-  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons, FontAwesome5, Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Spacing, BorderRadius } from '@/shared';
 import { useRouter } from 'expo-router';
 import {
   calculateStudyStats,
@@ -23,11 +21,56 @@ import {
   StudySession,
   StudentNote,
 } from '@/features/content';
+import { useAppTheme } from '@/shared';
 
-const { width } = Dimensions.get('window');
+type TabKey = 'stats' | 'notes';
+
+interface ThemePalette {
+  surface: string;
+  panel: string;
+  panelSoft: string;
+  border: string;
+  text: string;
+  textMuted: string;
+  accent: string;
+  headerGradient: [string, string];
+  cardGradient: [string, string];
+  chipBg: string;
+}
+
+const darkTheme: ThemePalette = {
+  surface: '#06070B',
+  panel: '#11131A',
+  panelSoft: '#191D27',
+  border: 'rgba(255,255,255,0.09)',
+  text: '#F7F9FF',
+  textMuted: '#9AA5BD',
+  accent: '#2DDCFF',
+  headerGradient: ['#0C1020', '#11131A'],
+  cardGradient: ['#151A27', '#10131A'],
+  chipBg: '#1E2A52',
+};
+
+const lightTheme: ThemePalette = {
+  surface: '#F4F6FB',
+  panel: '#FFFFFF',
+  panelSoft: '#ECF1FA',
+  border: 'rgba(10,14,28,0.12)',
+  text: '#0E1322',
+  textMuted: '#65708A',
+  accent: '#155EEF',
+  headerGradient: ['#EEF3FF', '#FFFFFF'],
+  cardGradient: ['#FFFFFF', '#F3F7FF'],
+  chipBg: '#E4ECFF',
+};
 
 export default function ProgressScreen() {
   const router = useRouter();
+  const { mode, toggleTheme } = useAppTheme();
+  const isDark = mode === 'dark';
+  const theme = isDark ? darkTheme : lightTheme;
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
   const [sessions, setSessions] = useState<StudySession[]>([
     {
       id: '1',
@@ -68,65 +111,72 @@ export default function ProgressScreen() {
 
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [newNote, setNewNote] = useState({ title: '', content: '', chapterId: 1 });
-  const [selectedTab, setSelectedTab] = useState<'stats' | 'notes'>('stats');
+  const [selectedTab, setSelectedTab] = useState<TabKey>('stats');
 
   const stats = calculateStudyStats(sessions);
   const motivationalMessage = getMotivationalMessage(stats);
 
   const handleAddNote = () => {
-    if (newNote.title.trim() && newNote.content.trim()) {
-      const note: StudentNote = {
-        id: Date.now().toString(),
-        chapterId: newNote.chapterId,
-        title: newNote.title,
-        content: newNote.content,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        tags: [],
-      };
-      setNotes([...notes, note]);
-      setNewNote({ title: '', content: '', chapterId: 1 });
-      setShowNoteModal(false);
-    }
+    if (!newNote.title.trim() || !newNote.content.trim()) return;
+
+    const note: StudentNote = {
+      id: Date.now().toString(),
+      chapterId: newNote.chapterId,
+      title: newNote.title,
+      content: newNote.content,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      tags: [],
+    };
+
+    setNotes((prev) => [note, ...prev]);
+    setNewNote({ title: '', content: '', chapterId: 1 });
+    setShowNoteModal(false);
   };
 
   const handleDeleteNote = (id: string) => {
-    setNotes(notes.filter(n => n.id !== id));
+    setNotes((prev) => prev.filter((n) => n.id !== id));
   };
 
-  const chapterNotes = notes.filter(n => n.chapterId === 1);
-
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      <LinearGradient colors={['#6366F1', '#4F46E5'] as any} style={styles.header}>
-        <SafeAreaView edges={['top']} style={styles.headerSafe}>
-          <View style={styles.headerContentRows}>
-            <View>
-              <Text style={styles.headerSubtitle}>Personal Dashboard</Text>
-              <Text style={styles.headerTitle}>Growth Tracking</Text>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+
+      <LinearGradient colors={theme.headerGradient as any} style={styles.header}>
+        <View style={styles.headerTop}>
+          <View style={styles.brandWrap}>
+            <View style={styles.brandIcon}>
+              <Ionicons name="stats-chart" size={15} color={theme.accent} />
             </View>
-            <TouchableOpacity 
-              style={styles.historyBtn} 
-              onPress={() => router.push('/history')}
-            >
-              <Ionicons name="time-outline" size={24} color={Colors.white} />
-              <Text style={styles.historyBtnText}>History</Text>
+            <Text style={styles.brandText}>Stats</Text>
+          </View>
+
+          <View style={styles.headerActions}>
+            <TouchableOpacity style={styles.iconBtn} onPress={toggleTheme}>
+              <Ionicons name={isDark ? 'sunny' : 'moon'} size={16} color={theme.text} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/history')}>
+              <Ionicons name="time-outline" size={16} color={theme.text} />
             </TouchableOpacity>
           </View>
-        </SafeAreaView>
+        </View>
+
+        <LinearGradient colors={theme.cardGradient as any} style={styles.heroCard}>
+          <Text style={styles.heroTitle}>Learning Progress</Text>
+          <Text style={styles.heroSubtitle}>{motivationalMessage}</Text>
+        </LinearGradient>
       </LinearGradient>
 
-      <View style={styles.tabWrapper}>
-        <View style={styles.tabContainer}>
+      <View style={styles.tabWrap}>
+        <View style={styles.tabRow}>
           <TouchableOpacity
-            style={[styles.tab, selectedTab === 'stats' && styles.tabActive]}
+            style={[styles.tabBtn, selectedTab === 'stats' && styles.tabBtnActive]}
             onPress={() => setSelectedTab('stats')}
           >
             <Text style={[styles.tabText, selectedTab === 'stats' && styles.tabTextActive]}>Statistics</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.tab, selectedTab === 'notes' && styles.tabActive]}
+            style={[styles.tabBtn, selectedTab === 'notes' && styles.tabBtnActive]}
             onPress={() => setSelectedTab('notes')}
           >
             <Text style={[styles.tabText, selectedTab === 'notes' && styles.tabTextActive]}>Notes</Text>
@@ -135,40 +185,35 @@ export default function ProgressScreen() {
       </View>
 
       {selectedTab === 'stats' ? (
-        <ScrollView style={styles.content} contentContainerStyle={styles.contentPadding} showsVerticalScrollIndicator={false}>
-          <LinearGradient
-            colors={['#ECFDF5', '#D1FAE5'] as any}
-            style={styles.motivationalCard}
-          >
-            <FontAwesome5 name="lightbulb" size={24} color="#10B981" />
-            <Text style={styles.motivationalText}>{motivationalMessage}</Text>
-          </LinearGradient>
-
-          <View style={styles.statsGrid}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          <View style={styles.statGrid}>
             <View style={styles.statCard}>
-              <View style={[styles.iconBox, { backgroundColor: '#FEE2E2' }]}>
-                <MaterialIcons name="local-fire-department" size={24} color="#EF4444" />
+              <View style={[styles.statIcon, { backgroundColor: isDark ? '#3A1620' : '#FEE2E2' }]}>
+                <MaterialIcons name="local-fire-department" size={18} color="#EF4444" />
               </View>
               <Text style={styles.statValue}>{stats.streakDays}</Text>
               <Text style={styles.statLabel}>Day Streak</Text>
             </View>
+
             <View style={styles.statCard}>
-              <View style={[styles.iconBox, { backgroundColor: '#E0E7FF' }]}>
-                <MaterialIcons name="schedule" size={24} color="#4F46E5" />
+              <View style={[styles.statIcon, { backgroundColor: isDark ? '#162C45' : '#DBEAFE' }]}>
+                <MaterialIcons name="schedule" size={18} color="#2563EB" />
               </View>
               <Text style={styles.statValue}>{stats.totalSessions}</Text>
               <Text style={styles.statLabel}>Sessions</Text>
             </View>
+
             <View style={styles.statCard}>
-              <View style={[styles.iconBox, { backgroundColor: '#D1FAE5' }]}>
-                <MaterialIcons name="timer" size={24} color="#10B981" />
+              <View style={[styles.statIcon, { backgroundColor: isDark ? '#123527' : '#DCFCE7' }]}>
+                <MaterialIcons name="timer" size={18} color="#16A34A" />
               </View>
               <Text style={styles.statValue}>{formatTimeSpent(stats.totalTimeSpent)}</Text>
               <Text style={styles.statLabel}>Time Spent</Text>
             </View>
+
             <View style={styles.statCard}>
-              <View style={[styles.iconBox, { backgroundColor: '#FEF3C7' }]}>
-                <MaterialIcons name="school" size={24} color="#F59E0B" />
+              <View style={[styles.statIcon, { backgroundColor: isDark ? '#3A2A12' : '#FEF3C7' }]}>
+                <MaterialIcons name="school" size={18} color="#D97706" />
               </View>
               <Text style={styles.statValue}>{stats.chaptersCompleted}/3</Text>
               <Text style={styles.statLabel}>Chapters</Text>
@@ -177,578 +222,521 @@ export default function ProgressScreen() {
 
           {stats.averageScore > 0 && (
             <View style={styles.scoreCard}>
-              <View style={styles.scoreHeader}>
-                <Text style={styles.scoreTitle}>Average Quiz Score</Text>
+              <View style={styles.scoreTop}>
+                <Text style={styles.sectionTitle}>Average Quiz Score</Text>
                 <Text style={styles.scoreValue}>{stats.averageScore}%</Text>
               </View>
-              <View style={styles.scoreBar}>
-                <LinearGradient
-                  colors={['#10B981', '#059669'] as any}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={[styles.scoreBarFill, { width: `${stats.averageScore}%` }]}
-                />
+              <View style={styles.track}>
+                <View style={[styles.trackFill, { width: `${stats.averageScore}%` }]} />
               </View>
             </View>
           )}
 
           <View style={styles.activityCard}>
-            <Text style={styles.activityTitle}>Recent Activity</Text>
-            {sessions.slice(0, 5).map((session, index) => (
-              <View key={session.id} style={[styles.activityItem, index !== 0 && styles.activityItemBorder]}>
-                <View style={[styles.activityIcon, { backgroundColor: session.type === 'quiz' ? '#FEF2F2' : '#F5F3FF' }]}>
+            <Text style={styles.sectionTitle}>Recent Activity</Text>
+            {sessions.slice(0, 5).map((session) => (
+              <View key={session.id} style={styles.activityRow}>
+                <View style={[styles.activityIcon, { backgroundColor: session.type === 'quiz' ? '#FEE2E2' : '#E0E7FF' }]}>
                   <MaterialIcons
                     name={session.type === 'quiz' ? 'quiz' : 'layers'}
-                    size={20}
-                    color={session.type === 'quiz' ? '#EF4444' : '#6366F1'}
+                    size={16}
+                    color={session.type === 'quiz' ? '#DC2626' : '#4F46E5'}
                   />
                 </View>
-                <View style={styles.activityContent}>
-                  <Text style={styles.activityType}>
+                <View style={styles.activityTextWrap}>
+                  <Text style={styles.activityTitle}>
                     {session.type === 'quiz' ? 'Quiz' : 'Flashcards'} - Chapter {session.chapterId}
                   </Text>
-                  <Text style={styles.activityTime}>
+                  <Text style={styles.activityMeta}>
                     {new Date(session.startTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                   </Text>
                 </View>
-                {session.score !== undefined && (
-                  <View style={styles.activityScore}>
-                    <Text style={styles.activityScoreText}>{session.score}%</Text>
-                  </View>
-                )}
+                {session.score !== undefined ? <Text style={styles.scoreChip}>{session.score}%</Text> : null}
               </View>
             ))}
           </View>
         </ScrollView>
       ) : (
-        <View style={styles.notesContainer}>
+        <View style={styles.notesWrap}>
           <FlatList
             data={notes}
-            keyExtractor={item => item.id}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.notesListContent}
             renderItem={({ item }) => (
               <View style={styles.noteCard}>
-                <View style={styles.noteHeader}>
+                <View style={styles.noteTop}>
                   <Text style={styles.noteTitle}>{item.title}</Text>
                   <TouchableOpacity onPress={() => handleDeleteNote(item.id)}>
-                    <Ionicons name="trash-outline" size={20} color={Colors.error} />
+                    <Ionicons name="trash-outline" size={18} color="#EF4444" />
                   </TouchableOpacity>
                 </View>
-                <Text style={styles.noteContent}>{item.content}</Text>
-                <View style={styles.noteFooter}>
-                  <View style={styles.chapterBadge}>
-                    <Text style={styles.chapterBadgeText}>Chapter {item.chapterId}</Text>
+                <Text style={styles.noteBody}>{item.content}</Text>
+                <View style={styles.noteMetaRow}>
+                  <View style={styles.noteBadge}>
+                    <Text style={styles.noteBadgeText}>Chapter {item.chapterId}</Text>
                   </View>
-                  <Text style={styles.noteDate}>
-                    {new Date(item.createdAt).toLocaleDateString()}
-                  </Text>
+                  <Text style={styles.noteDate}>{new Date(item.createdAt).toLocaleDateString()}</Text>
                 </View>
               </View>
             )}
-            contentContainerStyle={styles.notesList}
             ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <View style={styles.emptyIconCircle}>
-                  <Ionicons name="document-text-outline" size={48} color={Colors.gray300} />
-                </View>
-                <Text style={styles.emptyText}>No notes recorded yet</Text>
-                <Text style={styles.emptySubtext}>Your quick study notes will appear here</Text>
+              <View style={styles.emptyState}>
+                <Ionicons name="document-text-outline" size={40} color={theme.textMuted} />
+                <Text style={styles.emptyTitle}>No notes yet</Text>
+                <Text style={styles.emptySubtitle}>Create your first note to track revision points.</Text>
               </View>
             }
           />
-          <TouchableOpacity
-            style={styles.addNoteButton}
-            onPress={() => setShowNoteModal(true)}
-          >
-            <LinearGradient
-              colors={['#6366F1', '#4F46E5'] as any}
-              style={styles.addNoteGradient}
-            >
-              <Ionicons name="add" size={24} color={Colors.white} />
-              <Text style={styles.addNoteButtonText}>Create New Note</Text>
-            </LinearGradient>
+
+          <TouchableOpacity style={styles.addBtn} onPress={() => setShowNoteModal(true)}>
+            <Ionicons name="add" size={20} color="#FFFFFF" />
+            <Text style={styles.addBtnText}>Create Note</Text>
           </TouchableOpacity>
         </View>
       )}
 
-      <Modal
-        visible={showNoteModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowNoteModal(false)}
-      >
+      <Modal visible={showNoteModal} transparent animationType="slide" onRequestClose={() => setShowNoteModal(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHead}>
               <Text style={styles.modalTitle}>New Note</Text>
               <TouchableOpacity onPress={() => setShowNoteModal(false)}>
-                <Ionicons name="close" size={24} color={Colors.gray900} />
+                <Ionicons name="close" size={22} color={theme.text} />
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-              <Text style={styles.inputLabel}>Title</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="What's this about?"
-                value={newNote.title}
-                onChangeText={text => setNewNote({ ...newNote, title: text })}
-                placeholderTextColor={Colors.gray400}
-              />
+            <Text style={styles.inputLabel}>Title</Text>
+            <TextInput
+              style={styles.input}
+              value={newNote.title}
+              onChangeText={(title) => setNewNote((prev) => ({ ...prev, title }))}
+              placeholder="What's this about?"
+              placeholderTextColor={theme.textMuted}
+            />
 
-              <Text style={styles.inputLabel}>Note Details</Text>
-              <TextInput
-                style={[styles.input, styles.contentInput]}
-                placeholder="Jot down your key points..."
-                value={newNote.content}
-                onChangeText={text => setNewNote({ ...newNote, content: text })}
-                multiline
-                placeholderTextColor={Colors.gray400}
-              />
+            <Text style={styles.inputLabel}>Details</Text>
+            <TextInput
+              style={[styles.input, styles.inputMultiline]}
+              value={newNote.content}
+              onChangeText={(content) => setNewNote((prev) => ({ ...prev, content }))}
+              placeholder="Write your key points"
+              placeholderTextColor={theme.textMuted}
+              multiline
+            />
 
-              <Text style={styles.inputLabel}>Select Chapter</Text>
-              <View style={styles.chapterSelector}>
-                {[1, 2, 3].map(ch => (
-                  <TouchableOpacity
-                    key={ch}
-                    style={[
-                      styles.chapterOption,
-                      newNote.chapterId === ch && styles.chapterOptionActive,
-                    ]}
-                    onPress={() => setNewNote({ ...newNote, chapterId: ch })}
-                  >
-                    <Text
-                      style={[
-                        styles.chapterOptionText,
-                        newNote.chapterId === ch && styles.chapterOptionTextActive,
-                      ]}
-                    >
-                      CH {ch}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </ScrollView>
+            <Text style={styles.inputLabel}>Chapter</Text>
+            <View style={styles.chRow}>
+              {[1, 2, 3].map((ch) => (
+                <TouchableOpacity
+                  key={ch}
+                  style={[styles.chBtn, newNote.chapterId === ch && styles.chBtnActive]}
+                  onPress={() => setNewNote((prev) => ({ ...prev, chapterId: ch }))}
+                >
+                  <Text style={[styles.chText, newNote.chapterId === ch && styles.chTextActive]}>CH {ch}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
-            <TouchableOpacity style={styles.saveButton} onPress={handleAddNote}>
-              <LinearGradient
-                colors={['#6366F1', '#4F46E5'] as any}
-                style={styles.saveGradient}
-              >
-                <Text style={styles.saveButtonText}>Save Note</Text>
-              </LinearGradient>
+            <TouchableOpacity style={styles.saveBtn} onPress={handleAddNote}>
+              <Text style={styles.saveBtnText}>Save Note</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
-  header: {
-    paddingHorizontal: Spacing.xl,
-    paddingBottom: 40,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontWeight: '600',
-    marginTop: 10,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: Colors.white,
-    marginTop: 5,
-  },
-  tabWrapper: {
-    marginTop: -25,
-    paddingHorizontal: Spacing.xl,
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: Colors.white,
-    borderRadius: 15,
-    padding: 6,
-    ...Colors.cardShadow as any,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: 10,
-  },
-  tabActive: {
-    backgroundColor: '#EEF2FF',
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.gray400,
-  },
-  tabTextActive: {
-    color: Colors.primary,
-  },
-  content: {
-    flex: 1,
-  },
-  contentPadding: {
-    paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.xl,
-    paddingBottom: 40,
-  },
-  motivationalCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.lg,
-    borderRadius: 20,
-    marginBottom: Spacing.xl,
-    gap: 15,
-  },
-  motivationalText: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#065F46',
-    lineHeight: 22,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: Spacing.xl,
-  },
-  statCard: {
-    width: (width - 60) / 2,
-    backgroundColor: Colors.white,
-    borderRadius: 20,
-    padding: Spacing.lg,
-    alignItems: 'flex-start',
-    ...Colors.cardShadow as any,
-  },
-  iconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  statValue: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: Colors.gray900,
-  },
-  statLabel: {
-    fontSize: 13,
-    color: Colors.gray500,
-    marginTop: 4,
-    fontWeight: '600',
-  },
-  scoreCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 20,
-    padding: Spacing.lg,
-    marginBottom: Spacing.xl,
-    ...Colors.cardShadow as any,
-  },
-  scoreHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  scoreTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.gray900,
-  },
-  scoreValue: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#10B981',
-  },
-  scoreBar: {
-    height: 10,
-    backgroundColor: '#F1F5F9',
-    borderRadius: 5,
-    overflow: 'hidden',
-  },
-  scoreBarFill: {
-    height: '100%',
-    borderRadius: 5,
-  },
-  activityCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 20,
-    padding: Spacing.lg,
-    ...Colors.cardShadow as any,
-  },
-  activityTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.gray900,
-    marginBottom: 15,
-  },
-  activityItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 15,
-    paddingVertical: 15,
-  },
-  activityItemBorder: {
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-  },
-  activityIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  activityContent: {
-    flex: 1,
-  },
-  activityType: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: Colors.gray900,
-  },
-  activityTime: {
-    fontSize: 13,
-    color: Colors.gray500,
-    marginTop: 2,
-  },
-  activityScore: {
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 10,
-  },
-  activityScoreText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#10B981',
-  },
-  notesContainer: {
-    flex: 1,
-  },
-  notesList: {
-    padding: Spacing.xl,
-    paddingBottom: 100,
-  },
-  noteCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 20,
-    padding: Spacing.lg,
-    marginBottom: Spacing.md,
-    ...Colors.cardShadow as any,
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.primary,
-  },
-  noteHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  noteTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: Colors.gray900,
-    flex: 1,
-  },
-  noteContent: {
-    fontSize: 14,
-    color: Colors.gray600,
-    lineHeight: 22,
-    marginBottom: 15,
-  },
-  noteFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  chapterBadge: {
-    backgroundColor: '#EEF2FF',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  chapterBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.primary,
-    textTransform: 'uppercase',
-  },
-  noteDate: {
-    fontSize: 12,
-    color: Colors.gray400,
-    fontWeight: '500',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 100,
-  },
-  emptyIconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: Colors.gray100,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.gray900,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: Colors.gray500,
-    marginTop: 8,
-  },
-  addNoteButton: {
-    position: 'absolute',
-    bottom: 25,
-    left: 20,
-    right: 20,
-    ...Colors.cardShadow as any,
-  },
-  addNoteGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 56,
-    borderRadius: 28,
-    gap: 10,
-  },
-  addNoteButtonText: {
-    color: Colors.white,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContainer: {
-    backgroundColor: Colors.white,
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
-    paddingTop: 20,
-    paddingBottom: 40,
-    maxHeight: '90%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.xl,
-    marginBottom: 25,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: Colors.gray900,
-  },
-  modalContent: {
-    paddingHorizontal: Spacing.xl,
-  },
-  inputLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.gray900,
-    marginBottom: 10,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  input: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: 15,
-    padding: 15,
-    fontSize: 16,
-    color: Colors.gray900,
-    marginBottom: 20,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  contentInput: {
-    minHeight: 150,
-    textAlignVertical: 'top',
-  },
-  chapterSelector: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 30,
-  },
-  chapterOption: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#F1F5F9',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-  },
-  chapterOptionActive: {
-    borderColor: Colors.primary,
-    backgroundColor: '#EEF2FF',
-  },
-  chapterOptionText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.gray500,
-  },
-  chapterOptionTextActive: {
-    color: Colors.primary,
-  },
-  saveButton: {
-    paddingHorizontal: Spacing.xl,
-    marginTop: 10,
-  },
-  saveGradient: {
-    height: 56,
-    borderRadius: 15,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  saveButtonText: {
-    color: Colors.white,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  headerSafe: {
-    paddingHorizontal: 20,
-    paddingBottom: 15,
-  },
-  headerContentRows: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  historyBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    gap: 6,
-  },
-  historyBtnText: {
-    color: Colors.white,
-    fontSize: 13,
-    fontWeight: '700',
-  },
-});
+const createStyles = (theme: ThemePalette) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.surface,
+    },
+    header: {
+      paddingHorizontal: 16,
+      paddingBottom: 18,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+    },
+    headerTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingTop: 4,
+      marginBottom: 12,
+    },
+    brandWrap: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    brandIcon: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.chipBg,
+    },
+    brandText: {
+      color: theme.text,
+      fontSize: 16,
+      fontWeight: '700',
+    },
+    headerActions: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    iconBtn: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.panel,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    heroCard: {
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: theme.border,
+      padding: 16,
+      gap: 8,
+    },
+    heroTitle: {
+      color: theme.text,
+      fontSize: 20,
+      fontWeight: '800',
+    },
+    heroSubtitle: {
+      color: theme.textMuted,
+      fontSize: 13,
+      lineHeight: 20,
+      fontWeight: '500',
+    },
+    tabWrap: {
+      paddingHorizontal: 16,
+      paddingTop: 12,
+      paddingBottom: 6,
+    },
+    tabRow: {
+      flexDirection: 'row',
+      backgroundColor: theme.panel,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 14,
+      padding: 4,
+    },
+    tabBtn: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 10,
+      borderRadius: 10,
+    },
+    tabBtnActive: {
+      backgroundColor: theme.panelSoft,
+    },
+    tabText: {
+      color: theme.textMuted,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    tabTextActive: {
+      color: theme.text,
+    },
+    scrollContent: {
+      paddingHorizontal: 16,
+      paddingTop: 10,
+      paddingBottom: 30,
+      gap: 14,
+    },
+    statGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+    },
+    statCard: {
+      width: '48.5%',
+      backgroundColor: theme.panel,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 16,
+      padding: 12,
+      gap: 8,
+    },
+    statIcon: {
+      width: 34,
+      height: 34,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    statValue: {
+      color: theme.text,
+      fontSize: 17,
+      fontWeight: '800',
+    },
+    statLabel: {
+      color: theme.textMuted,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    scoreCard: {
+      backgroundColor: theme.panel,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 16,
+      padding: 14,
+      gap: 12,
+    },
+    scoreTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    sectionTitle: {
+      color: theme.text,
+      fontSize: 15,
+      fontWeight: '700',
+    },
+    scoreValue: {
+      color: theme.accent,
+      fontSize: 18,
+      fontWeight: '800',
+    },
+    track: {
+      width: '100%',
+      height: 8,
+      borderRadius: 999,
+      backgroundColor: theme.panelSoft,
+      overflow: 'hidden',
+    },
+    trackFill: {
+      height: '100%',
+      backgroundColor: '#22C55E',
+      borderRadius: 999,
+    },
+    activityCard: {
+      backgroundColor: theme.panel,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 16,
+      padding: 14,
+      gap: 10,
+    },
+    activityRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingVertical: 6,
+    },
+    activityIcon: {
+      width: 32,
+      height: 32,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    activityTextWrap: {
+      flex: 1,
+    },
+    activityTitle: {
+      color: theme.text,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    activityMeta: {
+      color: theme.textMuted,
+      fontSize: 11,
+      marginTop: 2,
+    },
+    scoreChip: {
+      color: '#22C55E',
+      fontSize: 12,
+      fontWeight: '800',
+      backgroundColor: isDarkColor(theme) ? 'rgba(34,197,94,0.16)' : '#DCFCE7',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 999,
+    },
+    notesWrap: {
+      flex: 1,
+      paddingHorizontal: 16,
+      paddingTop: 8,
+      paddingBottom: 20,
+    },
+    notesListContent: {
+      paddingBottom: 100,
+      gap: 10,
+    },
+    noteCard: {
+      backgroundColor: theme.panel,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 14,
+      padding: 12,
+      marginBottom: 10,
+      gap: 8,
+    },
+    noteTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 10,
+    },
+    noteTitle: {
+      flex: 1,
+      color: theme.text,
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    noteBody: {
+      color: theme.textMuted,
+      fontSize: 13,
+      lineHeight: 20,
+    },
+    noteMetaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    noteBadge: {
+      backgroundColor: theme.panelSoft,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 999,
+    },
+    noteBadgeText: {
+      color: theme.text,
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    noteDate: {
+      color: theme.textMuted,
+      fontSize: 11,
+      fontWeight: '600',
+    },
+    addBtn: {
+      position: 'absolute',
+      right: 16,
+      bottom: 18,
+      backgroundColor: theme.accent,
+      borderRadius: 999,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    addBtnText: {
+      color: '#FFFFFF',
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    emptyState: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 50,
+      gap: 8,
+    },
+    emptyTitle: {
+      color: theme.text,
+      fontSize: 15,
+      fontWeight: '700',
+    },
+    emptySubtitle: {
+      color: theme.textMuted,
+      fontSize: 12,
+      textAlign: 'center',
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.45)',
+      justifyContent: 'flex-end',
+    },
+    modalCard: {
+      backgroundColor: theme.panel,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
+      gap: 10,
+    },
+    modalHead: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 6,
+    },
+    modalTitle: {
+      color: theme.text,
+      fontSize: 18,
+      fontWeight: '800',
+    },
+    inputLabel: {
+      color: theme.text,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    input: {
+      width: '100%',
+      backgroundColor: theme.panelSoft,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      color: theme.text,
+      fontSize: 14,
+    },
+    inputMultiline: {
+      minHeight: 90,
+      textAlignVertical: 'top',
+    },
+    chRow: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    chBtn: {
+      flex: 1,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.panelSoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 10,
+    },
+    chBtnActive: {
+      backgroundColor: theme.accent,
+    },
+    chText: {
+      color: theme.text,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    chTextActive: {
+      color: '#FFFFFF',
+    },
+    saveBtn: {
+      marginTop: 6,
+      borderRadius: 12,
+      backgroundColor: theme.accent,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 12,
+    },
+    saveBtnText: {
+      color: '#FFFFFF',
+      fontSize: 14,
+      fontWeight: '800',
+    },
+  });
+
+const isDarkColor = (theme: ThemePalette) => theme.surface === '#06070B';
