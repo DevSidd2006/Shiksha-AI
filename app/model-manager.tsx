@@ -105,66 +105,99 @@ export default function ModelManagerScreen() {
     }
   };
 
-  const renderItem = ({ item }: { item: Model }) => (
-    <View style={styles.modelCard}>
-      <View style={styles.modelRow}>
-        <View style={styles.iconContainer}>
-          <MaterialIcons name="memory" size={32} color={Colors.primary} />
-        </View>
-        <View style={styles.modelInfo}>
-          <Text style={styles.modelName}>{item.name}</Text>
-          <Text style={styles.modelSize}>{item.size}</Text>
-          {item.status === 'downloaded' && activeModelId === item.id && (
-            <Text style={styles.activeTag}>Active on device</Text>
+  const getModelMeta = (model: Model) => {
+    if (model.id === 'qwen-2.5-1.5b-q4') {
+      return {
+        chips: ['Recommended', '1.5B', 'Q4_K_M'],
+        accent: Colors.success,
+      };
+    }
+
+    if (model.id === 'llama-3.2-1b-q5') {
+      return {
+        chips: ['Fast', '1B', 'Q5_K_S'],
+        accent: Colors.primary,
+      };
+    }
+
+    return {
+      chips: ['Custom'],
+      accent: Colors.textSecondary,
+    };
+  };
+
+  const renderItem = ({ item }: { item: Model }) => {
+    const meta = getModelMeta(item);
+
+    return (
+      <View style={styles.modelCard}>
+        <View style={styles.modelRow}>
+          <View style={[styles.iconContainer, { backgroundColor: `${meta.accent}1A` }]}>
+            <MaterialIcons name="memory" size={32} color={meta.accent} />
+          </View>
+          <View style={styles.modelInfo}>
+            <Text style={styles.modelName}>{item.name}</Text>
+            <Text style={styles.modelSize}>{item.size}</Text>
+            <View style={styles.chipRow}>
+              {meta.chips.map((chip) => (
+                <View key={`${item.id}-${chip}`} style={styles.infoChip}>
+                  <Text style={styles.infoChipText}>{chip}</Text>
+                </View>
+              ))}
+            </View>
+            {item.status === 'downloaded' && activeModelId === item.id && (
+              <Text style={styles.activeTag}>Active on device</Text>
+            )}
+          </View>
+
+          {item.status === 'downloaded' ? (
+            <View style={styles.actionColumn}>
+              <TouchableOpacity onPress={() => handleApply(item)} style={styles.applyButton}>
+                <Text style={styles.applyText}>Use</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={async () => {
+                const success = await llamaBridge.ensure(item.localPath!);
+                if (success) Alert.alert('Success', `Model Loaded to RAM`);
+                else Alert.alert('Error', 'Failed to load model.');
+              }} style={[styles.applyButton, { backgroundColor: Colors.primary }]}> 
+                <Text style={styles.applyText}>Load</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={async () => {
+                await llamaBridge.stop();
+                Alert.alert('Success', `Model unmounted from RAM`);
+              }} style={[styles.applyButton, { backgroundColor: Colors.warning }]}> 
+                <Text style={styles.applyText}>Unload</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={() => handleDelete(item)} style={styles.deleteButton}>
+                <Ionicons name="trash-outline" size={20} color={Colors.error} />
+              </TouchableOpacity>
+            </View>
+          ) : item.status === 'downloading' ? (
+            <View style={styles.downloadProgress}>
+              <ActivityIndicator size="small" color={Colors.primary} />
+            </View>
+          ) : (
+            <TouchableOpacity onPress={() => handleDownload(item)} style={styles.downloadButton}>
+              <Ionicons name="cloud-download-outline" size={24} color={Colors.white} />
+            </TouchableOpacity>
           )}
         </View>
 
-        {item.status === 'downloaded' ? (
-          <View style={styles.actionColumn}>
-            <TouchableOpacity onPress={() => handleApply(item)} style={styles.applyButton}>
-              <Text style={styles.applyText}>Use</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={async () => {
-              const success = await llamaBridge.ensure(item.localPath!);
-              if (success) Alert.alert('Success', `Model Loaded to RAM`);
-              else Alert.alert('Error', 'Failed to load model.');
-            }} style={[styles.applyButton, { backgroundColor: Colors.primary }]}>
-              <Text style={styles.applyText}>Load</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={async () => {
-              await llamaBridge.stop();
-              Alert.alert('Success', `Model unmounted from RAM`);
-            }} style={[styles.applyButton, { backgroundColor: Colors.warning }]}>
-              <Text style={styles.applyText}>Unload</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={() => handleDelete(item)} style={styles.deleteButton}>
-              <Ionicons name="trash-outline" size={20} color={Colors.error} />
-            </TouchableOpacity>
+        {downloadingId === item.id && (
+          <View style={styles.progressBarContainer}>
+            <View style={styles.progressTrack}>
+              <View style={[styles.progressFill, { width: `${Math.max(0, Math.min(progress * 100, 100))}%` }]} />
+            </View>
+            <Text style={styles.progressLabel}>{(progress * 100).toFixed(1)}%</Text>
           </View>
-        ) : item.status === 'downloading' ? (
-          <View style={styles.downloadProgress}>
-            <ActivityIndicator size="small" color={Colors.primary} />
-          </View>
-        ) : (
-          <TouchableOpacity onPress={() => handleDownload(item)} style={styles.downloadButton}>
-            <Ionicons name="cloud-download-outline" size={24} color={Colors.white} />
-          </TouchableOpacity>
         )}
       </View>
 
-      {downloadingId === item.id && (
-        <View style={styles.progressBarContainer}>
-          <View style={styles.progressTrack}>
-            <View style={[styles.progressFill, { width: `${Math.max(0, Math.min(progress * 100, 100))}%` }]} />
-          </View>
-          <Text style={styles.progressLabel}>{(progress * 100).toFixed(1)}%</Text>
-        </View>
-      )}
-    </View>
-  );
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -292,6 +325,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.textSecondary,
     marginTop: 2,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 8,
+    gap: 6,
+  },
+  infoChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: '#EEF2FF',
+  },
+  infoChipText: {
+    fontSize: 11,
+    color: Colors.primary,
+    fontFamily: Fonts.semibold,
   },
   activeTag: {
     marginTop: 4,

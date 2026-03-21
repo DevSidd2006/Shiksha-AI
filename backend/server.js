@@ -2,7 +2,15 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const Tesseract = require('tesseract.js');
+const path = require('path');
+const { pathToFileURL } = require('url');
 require('dotenv').config();
+const {
+  ensureUser,
+  recordTutorEvent,
+  getDashboardStats,
+  getDatabaseHealth,
+} = require('./db/database');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -13,8 +21,49 @@ app.use(express.json({ limit: '50mb' })); // Increased limit for base64 images
 
 // Ollama configuration
 const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://localhost:11434';
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:1.5b';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'hf.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M';
 const TRANSLATOR_SERVICE_URL = process.env.TRANSLATOR_SERVICE_URL || 'http://localhost:3001';
+
+const NLLB_TO_ISO = {
+  hin_Deva: 'hi',
+  mar_Deva: 'mr',
+  ben_Beng: 'bn',
+  tam_Taml: 'ta',
+  tel_Telu: 'te',
+  kan_Knda: 'kn',
+  mal_Mlym: 'ml',
+  guj_Gujr: 'gu',
+  pan_Guru: 'pa',
+  urd_Arab: 'ur',
+  spa_Latn: 'es',
+  fra_Latn: 'fr',
+  deu_Latn: 'de',
+  arb_Arab: 'ar',
+  por_Latn: 'pt',
+  ita_Latn: 'it',
+  rus_Cyrl: 'ru',
+  jpn_Jpan: 'ja',
+  kor_Hang: 'ko',
+  zho_Hans: 'zh',
+};
+
+let cachedCloudTranslate = undefined;
+
+const getCloudTranslate = async () => {
+  if (cachedCloudTranslate !== undefined) {
+    return cachedCloudTranslate;
+  }
+
+  try {
+    const mod = await import('@vitalets/google-translate-api');
+    cachedCloudTranslate = mod.translate || mod.default?.translate || null;
+  } catch (error) {
+    console.log('Cloud translator package is unavailable:', error.message);
+    cachedCloudTranslate = null;
+  }
+
+  return cachedCloudTranslate;
+};
 
 // Check Ollama availability
 let ollamaAvailable = false;
@@ -34,6 +83,7 @@ const checkOllama = async () => {
 
 // Check Ollama on startup
 checkOllama();
+ensureUser('student_default');
 
 // Health check endpoint
 app.get('/', (req, res) => {
@@ -42,8 +92,20 @@ app.get('/', (req, res) => {
     message: 'Shiksha AI Backend is running',
     version: '1.0.0',
     ollama: ollamaAvailable ? 'connected' : 'disconnected',
-    aiModel: OLLAMA_MODEL
+    aiModel: OLLAMA_MODEL,
+    database: getDatabaseHealth() ? 'connected' : 'disconnected'
   });
+});
+
+app.get('/dashboard/:userId', (req, res) => {
+  try {
+    const userId = req.params.userId || 'student_default';
+    const stats = getDashboardStats(userId);
+    res.json(stats);
+  } catch (error) {
+    console.error('❌ Dashboard stats error:', error.message);
+    res.status(500).json({ error: 'Failed to load dashboard stats' });
+  }
 });
 
 // System prompt for student context
@@ -59,11 +121,12 @@ CORE INSTRUCTIONS:
 - Use simple analogies to explain complex scientific or mathematical concepts.
 
 MATH FORMATTING RULE:
-- ALWAYS enclose ALL mathematical expressions, equations, formulas, variables, and fractions in LaTeX format.
-- For stand-alone equations (Display Mode), wrap them in dual dollar signs: e.g., $$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$
-- For expressions or variables within sentences (Inline Mode), wrap them in single dollar signs: e.g., Solve for $x$ given $2x + 4 = 10$.
-- DO NOT output raw fractions as x = 96/13. Instead, use $\\frac{96}{13}$ or $x = \\frac{96}{13}$.
-- ALWAYS use proper LaTeX operators (e.g., \\cdot for multiplication, \\pm for plus-minus, \\sqrt for square root).
+- Use LaTeX only for full equations or non-trivial expressions.
+- Do NOT wrap every single symbol/variable (like u, v, t, a) in separate LaTeX blocks.
+- Prefer plain readable steps with short lines.
+- For stand-alone equations, use display mode when helpful: e.g., $$s = ut + \\frac{1}{2}at^2$$
+- For fractions and square roots, use proper LaTeX (e.g., $\\frac{96}{13}$, $\\sqrt{x}$).
+- Avoid excessive equation boxes. Keep math formatting minimal and clear.
 
 Mantra: Short, complete, and formatted correctly with LaTeX.`;
 };
@@ -75,44 +138,179 @@ const translateText = async (text, targetLang) => {
       text: text,
       tgt_lang: targetLang,
       src_lang: 'eng_Latn'
-    });
-    return response.data.translation;
+    }, { timeout: 15000 });
+
+    const translated = typeof response?.data?.translation === 'string'
+      ? response.data.translation.trim()
+      : '';
+
+    if (translated.length > 0) {
+      return translated;
+    }
   } catch (error) {
     console.error('Translation service error:', error.message);
-    return text; // Fallback to original text
   }
+
+  try {
+    const cloudTranslate = await getCloudTranslate();
+    const targetIso = NLLB_TO_ISO[targetLang] || targetLang;
+
+    if (cloudTranslate && targetIso) {
+      const result = await cloudTranslate(text, { from: 'en', to: targetIso });
+      const cloudText = typeof result?.text === 'string' ? result.text.trim() : '';
+      if (cloudText.length > 0) {
+        return cloudText;
+      }
+    }
+  } catch (error) {
+    console.error('Cloud translation fallback error:', error.message);
+  }
+
+  return text;
 };
 
 // Generate answer using Ollama
 const generateWithOllama = async (question, studentGrade = 'Class 9') => {
+  const systemPrompt = getSystemPrompt(studentGrade);
+
+  const getErrorMessage = (error) => {
+    const status = error?.response?.status;
+    const data = error?.response?.data;
+    const dataText = typeof data === 'string' ? data : JSON.stringify(data || {});
+    return `status=${status || 'n/a'} details=${dataText}`;
+  };
+
   try {
     const response = await axios.post(
       `${OLLAMA_HOST}/api/generate`,
       {
         model: OLLAMA_MODEL,
-        prompt: `${getSystemPrompt(studentGrade)}\n\nStudent question: ${question}`,
+        prompt: `${systemPrompt}\n\nStudent question: ${question}`,
         stream: false,
-        temperature: 0.7,
+        options: {
+          temperature: 0.6,
+          num_predict: 256,
+        },
       },
-      { timeout: 60000 }
+      { timeout: 120000 }
     );
 
+    let answer = typeof response?.data?.response === 'string'
+      ? response.data.response.trim()
+      : '';
+
+    if (!answer) {
+      const retry = await axios.post(
+        `${OLLAMA_HOST}/api/generate`,
+        {
+          model: OLLAMA_MODEL,
+          prompt: `${systemPrompt}\n\nStudent question: ${question}\n\nReturn a short direct answer in 3-5 lines.`,
+          stream: false,
+          options: {
+            temperature: 0.4,
+            num_predict: 192,
+          },
+        },
+        { timeout: 120000 }
+      );
+
+      answer = typeof retry?.data?.response === 'string'
+        ? retry.data.response.trim()
+        : '';
+    }
+
+    if (!answer) {
+      return null;
+    }
+
     return {
-      answer: response.data.response,
+      answer,
       model: OLLAMA_MODEL,
       source: 'ollama',
       timestamp: new Date().toISOString(),
     };
   } catch (error) {
-    console.error('Ollama error:', error.message);
-    return null;
+    console.error('Ollama primary error:', error.message, getErrorMessage(error));
+
+    // Fallback #1: simplified generate request with no options
+    try {
+      const simple = await axios.post(
+        `${OLLAMA_HOST}/api/generate`,
+        {
+          model: OLLAMA_MODEL,
+          prompt: `You are a concise Class 9 tutor. Answer clearly in short steps.\n\nQuestion: ${question}`,
+          stream: false,
+        },
+        { timeout: 120000 }
+      );
+
+      const answer = typeof simple?.data?.response === 'string' ? simple.data.response.trim() : '';
+      if (answer) {
+        return {
+          answer,
+          model: OLLAMA_MODEL,
+          source: 'ollama',
+          timestamp: new Date().toISOString(),
+        };
+      }
+    } catch (simpleError) {
+      console.error('Ollama fallback-generate error:', simpleError.message, getErrorMessage(simpleError));
+    }
+
+    // Fallback #2: chat endpoint for instruct-style models
+    try {
+      const chatResponse = await axios.post(
+        `${OLLAMA_HOST}/api/chat`,
+        {
+          model: OLLAMA_MODEL,
+          stream: false,
+          messages: [
+            { role: 'system', content: 'You are a concise AI Tutor for Class 9 students. Keep the answer accurate and short.' },
+            { role: 'user', content: question },
+          ],
+          options: {
+            temperature: 0.4,
+            num_predict: 192,
+          },
+        },
+        { timeout: 120000 }
+      );
+
+      const answer = typeof chatResponse?.data?.message?.content === 'string'
+        ? chatResponse.data.message.content.trim()
+        : '';
+
+      if (answer) {
+        return {
+          answer,
+          model: OLLAMA_MODEL,
+          source: 'ollama',
+          timestamp: new Date().toISOString(),
+        };
+      }
+    } catch (chatError) {
+      console.error('Ollama fallback-chat error:', chatError.message, getErrorMessage(chatError));
+    }
+
+    if (error.code === 'ECONNABORTED' || /timeout/i.test(error.message || '')) {
+      const timeoutError = new Error('Ollama response timed out.');
+      timeoutError.code = 'OLLAMA_TIMEOUT';
+      throw timeoutError;
+    }
+    throw error;
   }
 };
 
 // Main tutor endpoint
 app.post('/tutor', async (req, res) => {
+  const requestStartedAt = Date.now();
   try {
-    const { question, studentGrade = 'Class 9' } = req.body;
+    const {
+      question,
+      studentGrade = 'Class 9',
+      userId = 'student_default',
+      subject = 'General',
+    } = req.body;
 
     if (!question || typeof question !== 'string') {
       return res.status(400).json({
@@ -130,7 +328,7 @@ app.post('/tutor', async (req, res) => {
       if (!ollamaAvailable) {
         return res.status(503).json({
           error: 'Ollama is currently unavailable.',
-          suggestion: 'Ensure Ollama is running locally with qwen2.5:1.5b installed: ollama pull qwen2.5:1.5b',
+          suggestion: `Ensure Ollama is running locally with ${OLLAMA_MODEL} installed: ollama pull ${OLLAMA_MODEL}`,
         });
       }
     }
@@ -138,9 +336,16 @@ app.post('/tutor', async (req, res) => {
     console.log(`🔄 Generating response with Ollama (${OLLAMA_MODEL})...`);
     const result = await generateWithOllama(question, studentGrade);
 
-    if (!result) {
+    if (!result || !result.answer || result.answer.trim().length === 0) {
       throw new Error('Ollama failed to generate a response');
     }
+
+    recordTutorEvent({
+      userId,
+      subject,
+      question,
+      responseTimeMs: Date.now() - requestStartedAt,
+    });
 
     console.log(`✅ Normalized Answer generated`);
     console.log(`📏 Length: ${result.answer.length} characters\n`);
@@ -149,6 +354,13 @@ app.post('/tutor', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error processing question:', error.message);
+
+    if (error.code === 'OLLAMA_TIMEOUT') {
+      return res.status(504).json({
+        error: 'The AI model took too long to respond.',
+        details: 'Please try a shorter question or retry in a few seconds.',
+      });
+    }
 
     res.status(500).json({
       error: 'Failed to process your question. Please try again.',
@@ -234,8 +446,8 @@ app.post('/translate', async (req, res) => {
   }
 });
 
-// Vision endpoint using qwen2.5:1.5b (proxied to Ollama)
-const VISION_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5:1.5b';
+// Vision endpoint using hf.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M (proxied to Ollama)
+const VISION_MODEL = process.env.OLLAMA_MODEL || 'hf.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M';
 
 app.post('/vision', async (req, res) => {
   try {
@@ -290,12 +502,30 @@ GUIDELINES:
 
 // OCR endpoint using Tesseract.js (runs on Node.js server)
 let tesseractWorker = null;
+let tesseractWorkerPromise = null;
+
+const TESSDATA_DIR = path.join(__dirname);
+const TESSDATA_LANG_PATH = pathToFileURL(TESSDATA_DIR).href;
 
 const initTesseract = async () => {
   if (!tesseractWorker) {
-    console.log('🔧 Initializing Tesseract OCR worker...');
-    tesseractWorker = await Tesseract.createWorker('eng+hin');
-    console.log('✅ Tesseract OCR ready (English + Hindi)');
+    if (!tesseractWorkerPromise) {
+      tesseractWorkerPromise = (async () => {
+        console.log('🔧 Initializing Tesseract OCR worker...');
+        const worker = await Tesseract.createWorker('eng+hin', 1, {
+          langPath: TESSDATA_LANG_PATH,
+          gzip: false,
+        });
+        console.log(`✅ Tesseract OCR ready (English + Hindi) from ${TESSDATA_DIR}`);
+        tesseractWorker = worker;
+        return worker;
+      })().catch((error) => {
+        tesseractWorkerPromise = null;
+        throw error;
+      });
+    }
+
+    return tesseractWorkerPromise;
   }
   return tesseractWorker;
 };
@@ -339,5 +569,6 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Shiksha AI Backend running on http://0.0.0.0:${PORT}`);
   console.log(`📚 Accessible at http://192.168.0.109:${PORT} (network)`);
   console.log(`📚 Local Ollama Engine: ${OLLAMA_MODEL}`);
+  console.log(`🗄️ Database: ${getDatabaseHealth() ? 'connected' : 'disconnected'}`);
   console.log(`📚 Ready to help students learn!`);
 });

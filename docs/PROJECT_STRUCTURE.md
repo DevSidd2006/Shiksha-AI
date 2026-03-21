@@ -19,14 +19,12 @@
 - `src/features/auth/`: authentication UI components
 - `src/features/onboarding/`: onboarding/tutorial components and illustrations
 - `src/core/database/`: SQLite init and sync infrastructure
-- `src/core/services/`: shared core integrations (e.g., Supabase client)
 - `src/shared/styles/`: design system primitives
 
 ## Backend Breakdown
 - `backend/server.js`: main Express server
 - `backend/translator_service.py`: optional translation service
 - `backend/*.traineddata`: OCR language data files
-- `backend/db/supabase_schema.sql`: schema reference for Supabase setup
 
 ## Documentation Files
 - `README.md`: primary onboarding entry

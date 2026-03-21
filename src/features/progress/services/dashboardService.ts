@@ -1,6 +1,26 @@
 import * as SQLite from 'expo-sqlite';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 
 const db = SQLite.openDatabaseSync('shiksha_ai.db');
+
+const getDevBaseUrl = () => {
+  const hostUri = Constants.expoConfig?.hostUri;
+  if (hostUri) {
+    const host = hostUri.split(':')[0];
+    return `http://${host}:3000`;
+  }
+
+  if (Platform.OS === 'android') {
+    return 'http://10.0.2.2:3000';
+  }
+
+  return 'http://localhost:3000';
+};
+
+const API_URL = __DEV__
+  ? getDevBaseUrl()
+  : process.env.EXPO_PUBLIC_API_URL || 'https://shikshaai-backend.vercel.app';
 
 export interface DashboardStats {
   totalQuestions: number;
@@ -57,6 +77,23 @@ export interface TopicData {
 export class DashboardService {
   // Get all dashboard statistics
   static async getDashboardStats(userId: string): Promise<DashboardStats> {
+    try {
+      const response = await fetch(`${API_URL}/dashboard/${encodeURIComponent(userId)}`);
+
+      if (response.ok) {
+        const remoteStats = (await response.json()) as DashboardStats;
+        if (typeof remoteStats?.totalQuestions === 'number') {
+          return remoteStats;
+        }
+      }
+    } catch (error) {
+      console.log('Dashboard API unavailable, falling back to local SQLite stats.');
+    }
+
+    return this.getLocalDashboardStats(userId);
+  }
+
+  private static async getLocalDashboardStats(userId: string): Promise<DashboardStats> {
     try {
       const today = new Date();
       today.setHours(0, 0, 0, 0);

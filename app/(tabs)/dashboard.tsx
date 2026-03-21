@@ -1,50 +1,77 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
-  RefreshControl,
   ActivityIndicator,
-  Modal,
-  Platform,
+  RefreshControl,
+  ScrollView,
   StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { MaterialIcons, FontAwesome5, Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { FontAwesome5, Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { DashboardService, DashboardStats } from '@/features/progress';
-import { AchievementService } from '@/features/progress';
 import { getProfile } from '@/features/user';
-import { Colors, Spacing, BorderRadius, Fonts, Shadows } from '@/shared';
+import { useAppTheme } from '@/shared';
 
-// Import data with fallback
 let CLASS_9_SCIENCE: any[] = [];
 let CLASS_9_SCIENCE_QUIZ: any[] = [];
 
 try {
-  const scienceData = require('@/features/content');
-  CLASS_9_SCIENCE = scienceData.CLASS_9_SCIENCE || [];
+  const contentData = require('@/features/content');
+  CLASS_9_SCIENCE = contentData.CLASS_9_SCIENCE || [];
+  CLASS_9_SCIENCE_QUIZ = contentData.CLASS_9_SCIENCE_QUIZ || [];
 } catch (error) {
-  console.error('Failed to load flashcard data:', error);
+  console.error('Failed to load content data:', error);
 }
 
-try {
-  const quizData = require('@/features/content');
-  CLASS_9_SCIENCE_QUIZ = quizData.CLASS_9_SCIENCE_QUIZ || [];
-} catch (error) {
-  console.error('Failed to load quiz data:', error);
+interface ThemePalette {
+  surface: string;
+  panel: string;
+  panelSoft: string;
+  border: string;
+  text: string;
+  textMuted: string;
+  accent: string;
+  headerGradient: [string, string];
+  cardGradient: [string, string];
+  primaryButton: string;
+  primaryButtonText: string;
+  iconChip: string;
 }
 
-interface ChapterSummary {
-  id: number;
-  title: string;
-  flashcards: number;
-  quizQuestions: number;
-  difficulty: string;
-}
+const darkTheme: ThemePalette = {
+  surface: '#06070B',
+  panel: '#11131A',
+  panelSoft: '#191D27',
+  border: 'rgba(255,255,255,0.08)',
+  text: '#F7F9FF',
+  textMuted: '#9AA5BD',
+  accent: '#2DDCFF',
+  headerGradient: ['#0C1020', '#11131A'],
+  cardGradient: ['#151A27', '#10131A'],
+  primaryButton: '#FFFFFF',
+  primaryButtonText: '#0A0C13',
+  iconChip: '#1E2A52',
+};
+
+const lightTheme: ThemePalette = {
+  surface: '#F4F6FB',
+  panel: '#FFFFFF',
+  panelSoft: '#ECF1FA',
+  border: 'rgba(10,14,28,0.12)',
+  text: '#0E1322',
+  textMuted: '#65708A',
+  accent: '#155EEF',
+  headerGradient: ['#EEF3FF', '#FFFFFF'],
+  cardGradient: ['#FFFFFF', '#F3F7FF'],
+  primaryButton: '#10182D',
+  primaryButtonText: '#FFFFFF',
+  iconChip: '#E4ECFF',
+};
 
 export default function DashboardScreen() {
   const router = useRouter();
@@ -52,56 +79,29 @@ export default function DashboardScreen() {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
-  const [chapterSummaries, setChapterSummaries] = useState<ChapterSummary[]>([]);
+  const { mode: themeMode, toggleTheme } = useAppTheme();
 
-  useEffect(() => {
-    loadDashboardData();
-    loadChapterSummaries();
-  }, []);
+  const theme = themeMode === 'dark' ? darkTheme : lightTheme;
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const loadChapterSummaries = () => {
-    try {
-      const summaries: ChapterSummary[] = [];
-      
-      if (!CLASS_9_SCIENCE || CLASS_9_SCIENCE.length === 0) return;
+  const chapterCount = CLASS_9_SCIENCE.length;
+  const quizCount = CLASS_9_SCIENCE_QUIZ.length;
+  const flashcardCount = CLASS_9_SCIENCE.reduce(
+    (sum, chapter) => sum + (chapter.cards?.length || 0),
+    0
+  );
 
-      CLASS_9_SCIENCE.forEach((chapter: any) => {
-        if (!chapter || !chapter.id) return;
-        
-        const quizCount = CLASS_9_SCIENCE_QUIZ.filter((q: any) => q.chapter === chapter.id).length;
-        const difficulties = CLASS_9_SCIENCE_QUIZ
-          .filter((q: any) => q.chapter === chapter.id)
-          .map((q: any) => q.difficulty);
-        
-        const difficultyBreakdown = {
-          easy: difficulties.filter((d: string) => d === 'easy').length,
-          medium: difficulties.filter((d: string) => d === 'medium').length,
-          hard: difficulties.filter((d: string) => d === 'hard').length,
-        };
-
-        summaries.push({
-          id: chapter.id,
-          title: chapter.title,
-          flashcards: chapter.cards?.length || 0,
-          quizQuestions: quizCount,
-          difficulty: `${difficultyBreakdown.easy}E • ${difficultyBreakdown.medium}M • ${difficultyBreakdown.hard}H`,
-        });
-      });
-
-      setChapterSummaries(summaries);
-    } catch (error) {
-      console.error('Error loading chapter summaries:', error);
-    }
-  };
+  const activeChapter = CLASS_9_SCIENCE[0];
 
   const loadDashboardData = useCallback(async () => {
     try {
       setLoading(true);
-      const userProfile = await getProfile();
+      const [userProfile, dashboardStats] = await Promise.all([
+        getProfile(),
+        DashboardService.getDashboardStats('student_default'),
+      ]);
+
       setProfile(userProfile);
-      
-      const dashboardStats = await DashboardService.getDashboardStats('student_default');
       setStats(dashboardStats);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
@@ -111,6 +111,10 @@ export default function DashboardScreen() {
     }
   }, []);
 
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
+
   const onRefresh = () => {
     setRefreshing(true);
     loadDashboardData();
@@ -119,675 +123,652 @@ export default function DashboardScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+        <StatusBar barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'} />
+        <ActivityIndicator size="large" color={theme.accent} />
       </View>
     );
   }
 
+  const userName = profile?.name || 'Student';
+  const grade = profile?.grade || 'Class 8';
+  const mastery = Math.max(0, Math.min(100, stats?.accuracy || 75));
+  const completedTopics = stats?.topics?.length || 0;
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle={themeMode === 'dark' ? 'light-content' : 'dark-content'} />
+
       <ScrollView
         style={styles.scrollView}
+        contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        <LinearGradient
-          colors={['#6366F1', '#4F46E5']}
-          style={styles.header}
-        >
-          <View style={styles.headerTop}>
-            <View>
-              <Text style={styles.greeting}>Hello,</Text>
-              <Text style={styles.studentName}>{profile?.name || 'Academic Star'}</Text>
+        <LinearGradient colors={theme.headerGradient as any} style={styles.headerShell}>
+          <View style={styles.headerTopRow}>
+            <View style={styles.brandWrap}>
+              <View style={styles.brandIcon}>
+                <Ionicons name="school" size={16} color={theme.accent} />
+              </View>
+              <Text style={styles.brandText}>Shiksha AI</Text>
             </View>
-            <View style={styles.headerIcons}>
-              <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/settings')}>
-                <Ionicons name="notifications-outline" size={24} color={Colors.white} />
+
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                style={styles.iconAction}
+                onPress={toggleTheme}
+              >
+                <Ionicons
+                  name={themeMode === 'dark' ? 'sunny' : 'moon'}
+                  size={16}
+                  color={theme.text}
+                />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/profile')}>
-                <Ionicons name="person-outline" size={24} color={Colors.white} />
+              <TouchableOpacity style={styles.iconAction} onPress={() => router.push('/settings')}>
+                <Ionicons name="notifications-outline" size={16} color={theme.text} />
               </TouchableOpacity>
             </View>
           </View>
 
-          <View style={styles.statsBar}>
-            <View style={styles.statBox}>
-              <MaterialIcons name="local-fire-department" size={22} color="#FFD700" />
-              <Text style={styles.statValue}>{stats?.streak || 0}</Text>
-              <Text style={styles.statDesc}>Day Streak</Text>
+          <LinearGradient colors={theme.cardGradient as any} style={styles.welcomeCard}>
+            <Text style={styles.welcomeTitle}>Welcome back, {userName}! 👋</Text>
+            <Text style={styles.welcomeSubtext}>
+              You've mastered {completedTopics} topics this week. Keep up the momentum!
+            </Text>
+
+            <View style={styles.masteryRow}>
+              <View style={styles.masteryAvatars}>
+                <View style={styles.avatarDot} />
+                <View style={[styles.avatarDot, styles.avatarOverlap]} />
+                <View style={[styles.avatarDot, styles.avatarOverlap]} />
+              </View>
+              <Text style={styles.masteryLabel}>Your personal learning journey today</Text>
             </View>
-            <View style={[styles.statBox, styles.statDivider]}>
-              <MaterialIcons name="stars" size={22} color="#FFD700" />
-              <Text style={styles.statValue}>{stats?.totalPoints || 0}</Text>
-              <Text style={styles.statDesc}>Total XP</Text>
+
+            <View style={styles.goalWrap}>
+              <View style={styles.goalRingOuter}>
+                <View style={[styles.goalRingInner, { borderColor: theme.panel }]}> 
+                  <Text style={styles.goalPercent}>{mastery}%</Text>
+                  <Text style={styles.goalCaption}>GOAL</Text>
+                </View>
+              </View>
             </View>
-            <View style={styles.statBox}>
-              <MaterialIcons name="emoji-events" size={22} color="#FFD700" />
-              <Text style={styles.statValue}>#{stats?.rank || '12'}</Text>
-              <Text style={styles.statDesc}>Leaderboard</Text>
-            </View>
+          </LinearGradient>
+
+          <TouchableOpacity style={styles.tipCard} onPress={() => router.push('/progress')}>
+            <Text style={styles.tipTitle}>✨ AI Tutor Tip</Text>
+            <Text style={styles.tipAction}>View performance trends →</Text>
+          </TouchableOpacity>
+        </LinearGradient>
+
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Active Learning Path</Text>
+        </View>
+
+        <LinearGradient colors={theme.cardGradient as any} style={styles.pathCard}>
+          <View style={styles.pathBanner}>
+            <FontAwesome5 name="atom" size={30} color={theme.accent} />
+          </View>
+          <View style={styles.pathMetaRow}>
+            <Text style={styles.inProgressBadge}>IN PROGRESS</Text>
+          </View>
+          <Text style={styles.pathTitle}>{grade} Science: {activeChapter?.title || 'Cell Biology'}</Text>
+          <Text style={styles.pathDescription}>Module 4: Powerhouse of the Cell (Mitochondria)</Text>
+          <View style={styles.pathProgressTrack}>
+            <View style={[styles.pathProgressFill, { width: `${mastery}%` }]} />
+          </View>
+
+          <View style={styles.pathActions}>
+            <TouchableOpacity style={styles.primaryAction} onPress={() => router.push('/flashcards')}>
+              <Text style={styles.primaryActionText}>Continue Learning</Text>
+              <Ionicons name="arrow-forward" size={16} color={theme.primaryButtonText} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryAction} onPress={() => router.push('/notes')}>
+              <Text style={styles.secondaryActionText}>Curriculum Map</Text>
+            </TouchableOpacity>
           </View>
         </LinearGradient>
 
-        <View style={styles.searchWrapper}>
-          <TouchableOpacity style={styles.searchContainer}>
-            <Ionicons name="search" size={20} color={Colors.gray400} />
-            <Text style={styles.searchText}>Search notes, quizzes or chapters</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Quick AI Tools</Text>
+        </View>
+
+        <View style={styles.toolsGrid}>
+          <TouchableOpacity style={styles.toolCard} onPress={() => router.push('/quiz')}>
+            <View style={[styles.toolIconWrap, { backgroundColor: '#DCE6FF' }]}>
+              <Ionicons name="help-circle-outline" size={16} color="#1E40AF" />
+            </View>
+            <Text style={styles.toolTitle}>Generate Quiz</Text>
+            <Text style={styles.toolSubtitle}>Turn your notes into a practice test instantly.</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.toolCard} onPress={() => router.push('/notes')}>
+            <View style={[styles.toolIconWrap, { backgroundColor: '#DDF9EE' }]}>
+              <Ionicons name="document-text-outline" size={16} color="#047857" />
+            </View>
+            <Text style={styles.toolTitle}>Summarize Notes</Text>
+            <Text style={styles.toolSubtitle}>Get key takeaways from any document or PDF.</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.toolCard} onPress={() => router.push('/tutor')}>
+            <View style={[styles.toolIconWrap, { backgroundColor: '#FFEBC8' }]}>
+              <Ionicons name="chatbubble-ellipses-outline" size={16} color="#92400E" />
+            </View>
+            <Text style={styles.toolTitle}>Ask AI Assistant</Text>
+            <Text style={styles.toolSubtitle}>Get a specific question answered instantly.</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.quickActions}>
-          <TouchableOpacity style={styles.actionItem} onPress={() => router.push('/flashcards')}>
-            <View style={[styles.actionIcon, { backgroundColor: '#EEF2FF' }]}>
-              <Ionicons name="book" size={26} color="#6366F1" />
-            </View>
-            <Text style={styles.actionLabel}>Library</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionItem} onPress={() => router.push('/progress')}>
-            <View style={[styles.actionIcon, { backgroundColor: '#F0FDF4' }]}>
-              <Ionicons name="stats-chart" size={26} color="#10B981" />
-            </View>
-            <Text style={styles.actionLabel}>Progress</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionItem} onPress={() => router.push('/tutor')}>
-            <View style={[styles.actionIcon, { backgroundColor: '#FFF7ED' }]}>
-              <Ionicons name="chatbubbles" size={26} color="#F59E0B" />
-            </View>
-            <Text style={styles.actionLabel}>Ask AI</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionItem} onPress={() => router.push('/quiz')}>
-            <View style={[styles.actionIcon, { backgroundColor: '#FEF2F2' }]}>
-              <Ionicons name="flash" size={26} color="#EF4444" />
-            </View>
-            <Text style={styles.actionLabel}>Quiz</Text>
-          </TouchableOpacity>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Upcoming Goals</Text>
         </View>
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Continue Learning</Text>
-            <TouchableOpacity onPress={() => router.push('/flashcards')}><Text style={styles.viewAll}>Resume</Text></TouchableOpacity>
+        <View style={styles.goalList}>
+          <View style={styles.goalItem}>
+            <View style={[styles.goalIcon, { backgroundColor: '#FEE2E2' }]}>
+              <Ionicons name="calendar-outline" size={14} color="#B91C1C" />
+            </View>
+            <View style={styles.goalTextWrap}>
+              <Text style={styles.goalItemTitle}>Cell structure quiz</Text>
+              <Text style={styles.goalItemMeta}>Due tomorrow, 4 PM</Text>
+            </View>
           </View>
-          <TouchableOpacity style={styles.progressCard} onPress={() => router.push('/flashcards')}>
-            <View style={styles.progressIconBg}>
-              <FontAwesome5 name="atom" size={28} color="#6366F1" />
+
+          <View style={styles.goalItem}>
+            <View style={[styles.goalIcon, { backgroundColor: '#CCFBF1' }]}>
+              <Ionicons name="flask-outline" size={14} color="#0F766E" />
             </View>
-            <View style={styles.progressInfo}>
-              <Text style={styles.progressCategory}>SCIENCE • CHAPTER 3</Text>
-              <Text style={styles.progressTitle}>Atoms and Molecules</Text>
-              <View style={styles.progressBarContainer}>
-                <View style={[styles.progressBarFill, { width: '65%' }]} />
-              </View>
-              <View style={styles.progressMeta}>
-                <Ionicons name="time-outline" size={14} color={Colors.gray500} />
-                <Text style={styles.progressTime}>15 mins remaining</Text>
-              </View>
+            <View style={styles.goalTextWrap}>
+              <Text style={styles.goalItemTitle}>Lab report: Osmosis</Text>
+              <Text style={styles.goalItemMeta}>Due Friday, 11 AM</Text>
             </View>
-            <View style={styles.percentageCircle}>
-              <Text style={styles.percentageText}>65%</Text>
+          </View>
+
+          <View style={styles.goalItem}>
+            <View style={[styles.goalIcon, { backgroundColor: '#E0E7FF' }]}>
+              <Ionicons name="flash-outline" size={14} color="#1D4ED8" />
             </View>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>My Subjects</Text>
-          <View style={styles.subjectsGrid}>
-            <TouchableOpacity 
-              style={styles.subjectCard}
-              onPress={() => router.push('/flashcards')}
-            >
-              <LinearGradient
-                colors={['#EEF2FF', '#E0E7FF']}
-                style={styles.subjectIconWrap}
-              >
-                <FontAwesome5 name="microscope" size={24} color="#6366F1" />
-              </LinearGradient>
-              <Text style={styles.subjectCardLabel}>Science</Text>
-              <Text style={styles.subjectMeta}>15 Chapters</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.subjectCard} onPress={() => router.push('/flashcards')}>
-              <LinearGradient
-                colors={['#F0FDF4', '#DCFCE7']}
-                style={styles.subjectIconWrap}
-              >
-                <FontAwesome5 name="calculator" size={24} color="#10B981" />
-              </LinearGradient>
-              <Text style={styles.subjectCardLabel}>Maths</Text>
-              <Text style={styles.subjectMeta}>12 Chapters</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.subjectCard} onPress={() => router.push('/flashcards')}>
-              <LinearGradient
-                colors={['#FFF7ED', '#FFEDD5']}
-                style={styles.subjectIconWrap}
-              >
-                <FontAwesome5 name="history" size={24} color="#F59E0B" />
-              </LinearGradient>
-              <Text style={styles.subjectCardLabel}>History</Text>
-              <Text style={styles.subjectMeta}>8 Chapters</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.subjectCard} onPress={() => router.push('/flashcards')}>
-              <LinearGradient
-                colors={['#FEF2F2', '#FEE2E2']}
-                style={styles.subjectIconWrap}
-              >
-                <FontAwesome5 name="laptop-code" size={24} color="#EF4444" />
-              </LinearGradient>
-              <Text style={styles.subjectCardLabel}>IT</Text>
-              <Text style={styles.subjectMeta}>6 Chapters</Text>
-            </TouchableOpacity>
+            <View style={styles.goalTextWrap}>
+              <Text style={styles.goalItemTitle}>Daily study streak</Text>
+              <Text style={styles.goalItemMeta}>Target: 45 minutes</Text>
+            </View>
           </View>
         </View>
 
-        <View style={styles.promoSection}>
-          <LinearGradient
-            colors={['#8B5CF6', '#6D28D9']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.promoCard}
-          >
-            <View style={styles.promoContent}>
-              <Text style={styles.promoTag}>LIMITED OFFER</Text>
-              <Text style={styles.promoTitle}>Unlock AI Tutor Pro</Text>
-              <Text style={styles.promoDesc}>Get unlimited vision help and 24/7 exam support.</Text>
-              <TouchableOpacity style={styles.promoButton} onPress={() => router.push('/tutor')}>
-                <Text style={styles.promoButtonText}>Try Now</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.promoImage}>
-              <FontAwesome5 name="rocket" size={60} color="rgba(255,255,255,0.3)" />
-            </View>
-          </LinearGradient>
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>Recent Resources</Text>
+          <TouchableOpacity onPress={() => router.push('/flashcards')}>
+            <Text style={styles.sectionAction}>View All</Text>
+          </TouchableOpacity>
         </View>
 
-        <View style={{ height: 100 }} />
+        <LinearGradient colors={theme.cardGradient as any} style={styles.resourcesCard}>
+          <View style={styles.resourceItem}>
+            <Ionicons name="document-text" size={14} color={theme.accent} />
+            <View style={styles.resourceTextWrap}>
+              <Text style={styles.resourceTitle}>Introduction to Mitosis.pdf</Text>
+              <Text style={styles.resourceMeta}>Accessed 2 hours ago</Text>
+            </View>
+          </View>
+
+          <View style={styles.resourceItem}>
+            <Ionicons name="list" size={14} color={theme.accent} />
+            <View style={styles.resourceTextWrap}>
+              <Text style={styles.resourceTitle}>AI Summary: Plant Cells</Text>
+              <Text style={styles.resourceMeta}>Accessed 5 hours ago</Text>
+            </View>
+          </View>
+
+          <View style={styles.resourceItem}>
+            <Ionicons name="book" size={14} color={theme.accent} />
+            <View style={styles.resourceTextWrap}>
+              <Text style={styles.resourceTitle}>Video: Cytoplasm Explained</Text>
+              <Text style={styles.resourceMeta}>Accessed yesterday</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity style={styles.libraryButton} onPress={() => router.push('/flashcards')}>
+            <Text style={styles.libraryButtonText}>View All Library</Text>
+          </TouchableOpacity>
+        </LinearGradient>
+
+        <View style={styles.footerStats}>
+          <View style={styles.footerStatBox}>
+            <Text style={styles.footerStatValue}>{chapterCount}</Text>
+            <Text style={styles.footerStatLabel}>Chapters</Text>
+          </View>
+          <View style={styles.footerStatBox}>
+            <Text style={styles.footerStatValue}>{flashcardCount}</Text>
+            <Text style={styles.footerStatLabel}>Flashcards</Text>
+          </View>
+          <View style={styles.footerStatBox}>
+            <Text style={styles.footerStatValue}>{quizCount}</Text>
+            <Text style={styles.footerStatLabel}>Quiz Qs</Text>
+          </View>
+        </View>
       </ScrollView>
-
-      {/* Subject Detail Modal */}
-      <Modal
-        visible={selectedSubject === 'science'}
-        animationType="slide"
-        transparent={false}
-        onRequestClose={() => setSelectedSubject(null)}
-      >
-        <SafeAreaView style={styles.modalContainer}>
-          <LinearGradient colors={['#6366F1', '#4F46E5']} style={styles.modalHeaderModern}>
-            <TouchableOpacity onPress={() => setSelectedSubject(null)}>
-              <Ionicons name="chevron-back" size={28} color={Colors.white} />
-            </TouchableOpacity>
-            <Text style={styles.modalTitleModern}>Science - {profile?.grade || 'Class 8'}</Text>
-            <TouchableOpacity>
-              <Ionicons name="search-outline" size={24} color={Colors.white} />
-            </TouchableOpacity>
-          </LinearGradient>
-
-          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
-            <View style={styles.chaptersContainer}>
-              {chapterSummaries.map((chapter, idx) => (
-                <TouchableOpacity key={idx} style={styles.chapterCardModern}>
-                  <View style={styles.chapterCardTop}>
-                    <View style={styles.chapterIdBox}>
-                      <Text style={styles.chapterIdText}>{chapter.id < 10 ? `0${chapter.id}` : chapter.id}</Text>
-                    </View>
-                    <View style={styles.chapterInfoModern}>
-                      <Text style={styles.chapterTitleModern}>{chapter.title}</Text>
-                      <View style={styles.chapterBadges}>
-                        <View style={[styles.badge, { backgroundColor: '#EEF2FF' }]}>
-                          <Text style={[styles.badgeText, { color: '#6366F1' }]}>NCERT</Text>
-                        </View>
-                        <View style={[styles.badge, { backgroundColor: '#F0FDF4' }]}>
-                          <Text style={[styles.badgeText, { color: '#10B981' }]}>{profile?.grade || 'Class 8'}</Text>
-                        </View>
-                      </View>
-                    </View>
-                  </View>
-
-                  <View style={styles.chapterDivider} />
-
-                  <View style={styles.chapterActionsModern}>
-                    <View style={styles.chapAction}>
-                      <View style={[styles.chapActionIcon, { backgroundColor: '#EEF2FF' }]}>
-                        <MaterialIcons name="layers" size={22} color="#6366F1" />
-                      </View>
-                      <Text style={styles.chapActionLabel}>{chapter.flashcards}</Text>
-                    </View>
-                    <View style={styles.chapAction}>
-                      <View style={[styles.chapActionIcon, { backgroundColor: '#F0FDF4' }]}>
-                        <MaterialIcons name="quiz" size={22} color="#10B981" />
-                      </View>
-                      <Text style={styles.chapActionLabel}>{chapter.quizQuestions}</Text>
-                    </View>
-                    <TouchableOpacity style={styles.startBtn}>
-                      <LinearGradient
-                        colors={['#6366F1', '#4F46E5']}
-                        style={styles.startBtnGradient}
-                      >
-                        <Text style={styles.startBtnText}>Start</Text>
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <View style={{ height: 40 }} />
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F8FAFC',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  header: {
-    paddingTop: 30,
-    paddingBottom: 50,
-    paddingHorizontal: 24,
-    borderBottomLeftRadius: 40,
-    borderBottomRightRadius: 40,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 30,
-  },
-  greeting: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontWeight: '500',
-  },
-  studentName: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: Colors.white,
-    marginTop: 4,
-  },
-  headerIcons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  iconButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  statsBar: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 24,
-    paddingVertical: 18,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  statBox: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statDivider: {
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  statValue: {
-    color: Colors.white,
-    fontSize: 18,
-    fontWeight: '800',
-    marginTop: 6,
-  },
-  statDesc: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 11,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  searchWrapper: {
-    marginTop: -22,
-    paddingHorizontal: 24,
-    zIndex: 10,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.white,
-    borderRadius: 18,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    ...Colors.cardShadow as any,
-  },
-  searchText: {
-    flex: 1,
-    marginLeft: 12,
-    fontSize: 15,
-    color: Colors.gray400,
-    fontWeight: '500',
-  },
-  quickActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    marginTop: 30,
-  },
-  actionItem: {
-    alignItems: 'center',
-    width: '22%',
-  },
-  actionIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-    ...Colors.cardShadow as any,
-  },
-  actionLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.gray700,
-  },
-  section: {
-    marginTop: 32,
-    paddingHorizontal: 24,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: Colors.gray900,
-  },
-  viewAll: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#6366F1',
-  },
-  progressCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 24,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    ...Colors.cardShadow as any,
-  },
-  progressIconBg: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
-    backgroundColor: '#EEF2FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  progressInfo: {
-    flex: 1,
-    marginLeft: 16,
-  },
-  progressCategory: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#6366F1',
-    letterSpacing: 0.5,
-  },
-  progressTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.gray900,
-    marginTop: 2,
-  },
-  progressBarContainer: {
-    height: 6,
-    backgroundColor: Colors.gray100,
-    borderRadius: 3,
-    marginTop: 10,
-    width: '100%',
-  },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: '#6366F1',
-    borderRadius: 3,
-  },
-  progressMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
-    gap: 4,
-  },
-  progressTime: {
-    fontSize: 12,
-    color: Colors.gray500,
-    fontWeight: '500',
-  },
-  percentageCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    borderWidth: 3,
-    borderColor: '#6366F1',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginLeft: 12,
-  },
-  percentageText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#6366F1',
-  },
-  subjectsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 14,
-  },
-  subjectCard: {
-    width: '47%',
-    backgroundColor: Colors.white,
-    borderRadius: 24,
-    padding: 20,
-    alignItems: 'center',
-    ...Colors.cardShadow as any,
-  },
-  subjectIconWrap: {
-    width: 60,
-    height: 60,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  subjectCardLabel: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.gray900,
-  },
-  subjectMeta: {
-    fontSize: 12,
-    color: Colors.gray500,
-    marginTop: 4,
-  },
-  promoSection: {
-    paddingHorizontal: 24,
-    marginTop: 32,
-  },
-  promoCard: {
-    borderRadius: 32,
-    flexDirection: 'row',
-    padding: 24,
-    overflow: 'hidden',
-  },
-  promoContent: {
-    flex: 2,
-  },
-  promoTag: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1,
-  },
-  promoTitle: {
-    color: Colors.white,
-    fontSize: 22,
-    fontWeight: '800',
-    marginTop: 6,
-  },
-  promoDesc: {
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontSize: 14,
-    marginTop: 8,
-    lineHeight: 20,
-  },
-  promoButton: {
-    backgroundColor: Colors.white,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 16,
-    alignSelf: 'flex-start',
-    marginTop: 18,
-  },
-  promoButtonText: {
-    color: '#6D28D9',
-    fontWeight: '800',
-    fontSize: 13,
-  },
-  promoImage: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#F8FAFC',
-  },
-  modalHeaderModern: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-    paddingTop: Platform.OS === 'android' ? 40 : 20,
-  },
-  modalTitleModern: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: Colors.white,
-  },
-  modalContent: {
-    padding: 24,
-  },
-  chaptersContainer: {
-    gap: 16,
-  },
-  chapterCardModern: {
-    backgroundColor: Colors.white,
-    borderRadius: 24,
-    padding: 20,
-    ...Colors.cardShadow as any,
-  },
-  chapterCardTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  chapterIdBox: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: Colors.gray100,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  chapterIdText: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: Colors.gray400,
-  },
-  chapterInfoModern: {
-    flex: 1,
-    marginLeft: 16,
-  },
-  chapterTitleModern: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: Colors.gray900,
-  },
-  chapterBadges: {
-    flexDirection: 'row',
-    marginTop: 6,
-    gap: 8,
-  },
-  badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  badgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  chapterDivider: {
-    height: 1,
-    backgroundColor: Colors.gray100,
-    marginVertical: 16,
-  },
-  chapterActionsModern: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  chapAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  chapActionIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  chapActionLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.gray700,
-  },
-  startBtn: {
-    borderRadius: 14,
-    overflow: 'hidden',
-  },
-  startBtnGradient: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  startBtnText: {
-    color: Colors.white,
-    fontWeight: '800',
-    fontSize: 14,
-  },
-});
+const createStyles = (theme: ThemePalette) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.surface,
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: theme.surface,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    contentContainer: {
+      paddingBottom: 28,
+    },
+    headerShell: {
+      paddingHorizontal: 16,
+      paddingBottom: 14,
+    },
+    headerTopRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingTop: 8,
+      paddingBottom: 10,
+    },
+    brandWrap: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    brandIcon: {
+      width: 34,
+      height: 34,
+      borderRadius: 12,
+      backgroundColor: theme.iconChip,
+      borderWidth: 1,
+      borderColor: theme.border,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    brandText: {
+      color: theme.text,
+      fontSize: 16,
+      fontWeight: '800',
+    },
+    headerActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    iconAction: {
+      width: 34,
+      height: 34,
+      borderRadius: 12,
+      backgroundColor: theme.panel,
+      borderWidth: 1,
+      borderColor: theme.border,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    welcomeCard: {
+      marginTop: 8,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: theme.border,
+      padding: 14,
+    },
+    welcomeTitle: {
+      color: theme.text,
+      fontSize: 30,
+      lineHeight: 34,
+      fontWeight: '800',
+      letterSpacing: -0.4,
+    },
+    welcomeSubtext: {
+      marginTop: 8,
+      color: theme.textMuted,
+      fontSize: 14,
+      lineHeight: 20,
+      fontWeight: '500',
+    },
+    masteryRow: {
+      marginTop: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    masteryAvatars: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    avatarDot: {
+      width: 20,
+      height: 20,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.panelSoft,
+    },
+    avatarOverlap: {
+      marginLeft: -6,
+    },
+    masteryLabel: {
+      color: theme.textMuted,
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    goalWrap: {
+      marginTop: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 6,
+    },
+    goalRingOuter: {
+      width: 118,
+      height: 118,
+      borderRadius: 59,
+      borderWidth: 8,
+      borderColor: theme.accent,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderRightColor: theme.panelSoft,
+    },
+    goalRingInner: {
+      width: 86,
+      height: 86,
+      borderRadius: 43,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 1,
+    },
+    goalPercent: {
+      color: theme.text,
+      fontSize: 34,
+      fontWeight: '800',
+      lineHeight: 36,
+    },
+    goalCaption: {
+      color: theme.textMuted,
+      fontSize: 11,
+      fontWeight: '700',
+      letterSpacing: 1,
+    },
+    tipCard: {
+      marginTop: 10,
+      backgroundColor: theme.panel,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 16,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      borderLeftWidth: 3,
+      borderLeftColor: '#C57A1C',
+    },
+    tipTitle: {
+      color: theme.text,
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    tipAction: {
+      marginTop: 8,
+      color: theme.accent,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    sectionHeader: {
+      marginTop: 18,
+      paddingHorizontal: 16,
+      marginBottom: 10,
+    },
+    sectionHeaderRow: {
+      marginTop: 18,
+      paddingHorizontal: 16,
+      marginBottom: 10,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    sectionTitle: {
+      color: theme.text,
+      fontSize: 22,
+      fontWeight: '800',
+      letterSpacing: -0.3,
+    },
+    sectionAction: {
+      color: theme.accent,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    pathCard: {
+      marginHorizontal: 16,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: theme.border,
+      padding: 12,
+    },
+    pathBanner: {
+      height: 110,
+      borderRadius: 12,
+      backgroundColor: '#092319',
+      borderWidth: 1,
+      borderColor: theme.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    pathMetaRow: {
+      marginTop: 10,
+    },
+    inProgressBadge: {
+      alignSelf: 'flex-start',
+      fontSize: 10,
+      fontWeight: '800',
+      letterSpacing: 0.6,
+      color: '#7A4A00',
+      backgroundColor: '#FFE7C2',
+      borderRadius: 8,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+    },
+    pathTitle: {
+      marginTop: 10,
+      color: theme.text,
+      fontSize: 28,
+      lineHeight: 32,
+      fontWeight: '800',
+      letterSpacing: -0.5,
+    },
+    pathDescription: {
+      marginTop: 6,
+      color: theme.textMuted,
+      fontSize: 13,
+      lineHeight: 18,
+      fontWeight: '500',
+    },
+    pathProgressTrack: {
+      marginTop: 10,
+      height: 6,
+      borderRadius: 999,
+      backgroundColor: theme.panelSoft,
+      overflow: 'hidden',
+    },
+    pathProgressFill: {
+      height: '100%',
+      backgroundColor: theme.accent,
+      borderRadius: 999,
+    },
+    pathActions: {
+      marginTop: 12,
+      flexDirection: 'row',
+      gap: 8,
+    },
+    primaryAction: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      height: 42,
+      borderRadius: 10,
+      backgroundColor: theme.primaryButton,
+    },
+    primaryActionText: {
+      color: theme.primaryButtonText,
+      fontSize: 14,
+      fontWeight: '800',
+    },
+    secondaryAction: {
+      minWidth: 120,
+      height: 42,
+      borderRadius: 10,
+      backgroundColor: theme.panelSoft,
+      borderWidth: 1,
+      borderColor: theme.border,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: 12,
+    },
+    secondaryActionText: {
+      color: theme.text,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    toolsGrid: {
+      paddingHorizontal: 16,
+      gap: 10,
+    },
+    toolCard: {
+      backgroundColor: theme.panel,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 16,
+      padding: 12,
+    },
+    toolIconWrap: {
+      width: 30,
+      height: 30,
+      borderRadius: 9,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    toolTitle: {
+      marginTop: 8,
+      color: theme.text,
+      fontSize: 18,
+      fontWeight: '800',
+      letterSpacing: -0.2,
+    },
+    toolSubtitle: {
+      marginTop: 4,
+      color: theme.textMuted,
+      fontSize: 12,
+      fontWeight: '500',
+      lineHeight: 17,
+    },
+    goalList: {
+      paddingHorizontal: 16,
+      gap: 8,
+    },
+    goalItem: {
+      backgroundColor: theme.panel,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 12,
+      padding: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    goalIcon: {
+      width: 26,
+      height: 26,
+      borderRadius: 13,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    goalTextWrap: {
+      flex: 1,
+    },
+    goalItemTitle: {
+      color: theme.text,
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    goalItemMeta: {
+      marginTop: 1,
+      color: theme.textMuted,
+      fontSize: 11,
+      fontWeight: '500',
+    },
+    resourcesCard: {
+      marginHorizontal: 16,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
+      padding: 12,
+      gap: 8,
+    },
+    resourceItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    resourceTextWrap: {
+      flex: 1,
+    },
+    resourceTitle: {
+      color: theme.text,
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    resourceMeta: {
+      marginTop: 1,
+      color: theme.textMuted,
+      fontSize: 11,
+      fontWeight: '500',
+    },
+    libraryButton: {
+      marginTop: 8,
+      borderWidth: 1,
+      borderStyle: 'dashed',
+      borderColor: theme.border,
+      borderRadius: 12,
+      height: 36,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    libraryButtonText: {
+      color: theme.text,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    footerStats: {
+      marginTop: 16,
+      marginHorizontal: 16,
+      flexDirection: 'row',
+      backgroundColor: theme.panel,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: theme.border,
+      paddingVertical: 10,
+    },
+    footerStatBox: {
+      flex: 1,
+      alignItems: 'center',
+    },
+    footerStatValue: {
+      color: theme.text,
+      fontSize: 20,
+      fontWeight: '800',
+    },
+    footerStatLabel: {
+      marginTop: 2,
+      color: theme.textMuted,
+      fontSize: 11,
+      fontWeight: '600',
+    },
+  });

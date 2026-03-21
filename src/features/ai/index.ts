@@ -11,6 +11,11 @@ export { OCRService, type OCRResult } from './services/ocrService';
 export { VisionLanguageService, type VisionResult as VisionLanguageResult } from './services/visionLanguageService';
 export { VisionService, type VisionResult as VisionAnalysisResult } from './services/visionService';
 export {
+  detectLanguageRequest,
+  translateAssistantResponse,
+  type LanguageRequest,
+} from './services/mlKitTranslation';
+export {
   SpeechToTextService,
   INDIAN_LANGUAGES,
   LANGUAGE_CODES,

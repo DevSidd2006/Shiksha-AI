@@ -109,12 +109,12 @@ async function saveProfile(profile: StudentProfile): Promise<void> {
   try {
     await AsyncStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
 
-    // Sync to Supabase `users` table since we use standard `student_default` logic elsewhere
+    // Keep local user snapshot aligned with app-wide `student_default` usage.
     SyncManager.enqueueMutation('users', 'UPDATE', 'student_default', {
       id: 'student_default',
       name: profile.name,
       grade: parseInt(profile.grade.replace('Class ', ''), 10) || 8,
-      profile_data: profile // dump everything else in JSON for cloud restore
+      profile_data: profile
     });
 
   } catch (error) {

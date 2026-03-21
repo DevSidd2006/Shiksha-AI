@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,9 +15,10 @@ import {
   Modal,
   ScrollView,
   Dimensions,
+  PanResponder,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons, Ionicons, FontAwesome5, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -25,6 +26,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { sendQuestion, processDocument } from '@/features/ai';
 import { generateOfflineAnswer } from '@/features/ai';
 import { detectMathExpression, solveMathDetection } from '@/features/ai';
+import { detectLanguageRequest, translateAssistantResponse } from '@/features/ai';
 import { getOfflineMode, getPreferredLanguage } from '@/features/user';
 import { saveChat, getCurrentChat, clearCurrentChat } from '@/features/chat';
 import { ChatBubble } from '@/features/chat';
@@ -36,7 +38,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { WelcomeSplash } from '@/features/onboarding';
 import { TutorBotIllustration } from '@/features/onboarding';
 import { SpotlightTutorial, SpotlightStep } from '@/features/onboarding';
-import { Colors, Fonts, Shadows, Spacing, BorderRadius } from '@/shared';
+import { Colors, Fonts, Shadows, Spacing, BorderRadius, useAppTheme } from '@/shared';
 
 const { width } = Dimensions.get('window');
 const ExpoCameraModule: any = (() => {
@@ -60,7 +62,47 @@ interface Message {
 }
 type CaptureTask = 'vision' | 'ocr' | 'math';
 
-const INDIGO_GRADIENT = ['#6366F1', '#4F46E5'];
+interface CropBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+const OCR_CROP_MIN_SIZE = 64;
+
+const CHAT_THEMES = {
+  dark: {
+    background: '#06070B',
+    header: '#0F131D',
+    headerBorder: 'rgba(255,255,255,0.08)',
+    panel: '#10131A',
+    panelBorder: 'rgba(255,255,255,0.08)',
+    inputBg: '#111723',
+    inputBorder: 'rgba(255,255,255,0.1)',
+    text: '#F8FAFC',
+    textMuted: '#8A93A8',
+    accent: '#2DDCFF',
+    badgeBg: '#1E2A52',
+    badgeText: '#CFE6FF',
+    actionBg: '#171C28',
+  },
+  light: {
+    background: '#F4F6FB',
+    header: '#FFFFFF',
+    headerBorder: 'rgba(10,14,28,0.1)',
+    panel: '#FFFFFF',
+    panelBorder: 'rgba(10,14,28,0.12)',
+    inputBg: '#FFFFFF',
+    inputBorder: 'rgba(10,14,28,0.12)',
+    text: '#0E1322',
+    textMuted: '#65708A',
+    accent: '#155EEF',
+    badgeBg: '#E7EEFF',
+    badgeText: '#1C3FA9',
+    actionBg: '#EEF2FA',
+  },
+};
 
 const QUICK_TOPICS = [
   { label: "Newton's Laws", emoji: '🍎', query: "Explain Newton's Three Laws of Motion with examples." },
@@ -71,6 +113,10 @@ const QUICK_TOPICS = [
 ];
 
 export default function TutorScreen() {
+  const { isDark, toggleTheme } = useAppTheme();
+  const router = useRouter();
+  const chatTheme = isDark ? CHAT_THEMES.dark : CHAT_THEMES.light;
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -84,9 +130,21 @@ export default function TutorScreen() {
   const [cameraTask, setCameraTask] = useState<CaptureTask | null>(null);
   const [cameraFacing, setCameraFacing] = useState<'back' | 'front'>('back');
   const [cameraBusy, setCameraBusy] = useState(false);
+  const [showOcrCropper, setShowOcrCropper] = useState(false);
+  const [ocrCropImageUri, setOcrCropImageUri] = useState<string | null>(null);
+  const [sourceImageSize, setSourceImageSize] = useState({ width: 1, height: 1 });
+  const [cropperLayout, setCropperLayout] = useState({ width: 1, height: 1 });
+  const [cropBox, setCropBox] = useState<CropBox>({ x: 40, y: 40, width: 220, height: 160 });
 
   const flatListRef = useRef<FlatList>(null);
   const cameraRef = useRef<any>(null);
+  const cropBoxRef = useRef<CropBox>(cropBox);
+  const cropStartRef = useRef<CropBox>(cropBox);
+  const resizeStartRef = useRef<CropBox>(cropBox);
+
+  useEffect(() => {
+    cropBoxRef.current = cropBox;
+  }, [cropBox]);
 
   useEffect(() => {
     loadInitialData();
@@ -147,6 +205,9 @@ export default function TutorScreen() {
   const handleSend = async (text: string = inputText, imageUri?: string) => {
     if (!text.trim() && !imageUri) return;
 
+    const requestedLanguage = detectLanguageRequest(text);
+    const normalizedQuestion = requestedLanguage ? requestedLanguage.cleanedQuestion : text;
+
     const userMsg: Message = {
       id: Date.now().toString(),
       text: text.trim(),
@@ -165,15 +226,26 @@ export default function TutorScreen() {
       let tps: number | undefined;
 
       if (offlineMode) {
-        const response = await generateOfflineAnswer(text);
+        const response = await generateOfflineAnswer(normalizedQuestion);
         responseText = response.answer;
         if ((response as any).tokensPerSec) tps = (response as any).tokensPerSec;
       } else {
         if (imageUri) {
-          responseText = await VisionLanguageService.analyzeImage(imageUri, text || 'Explain this image');
+          responseText = await VisionLanguageService.analyzeImage(imageUri, normalizedQuestion || 'Explain this image');
         } else {
-          const response = await sendQuestion(text);
+          const response = await sendQuestion(normalizedQuestion);
           responseText = response.answer;
+        }
+      }
+
+      if (requestedLanguage) {
+        const translated = await translateAssistantResponse(responseText, requestedLanguage);
+        responseText = translated.text;
+
+        if (translated.provider === 'mlkit') {
+          responseText += `\n\nTranslated to ${requestedLanguage.languageName} using ML Kit.`;
+        } else if (translated.provider === 'backend') {
+          responseText += `\n\nTranslated to ${requestedLanguage.languageName} using translator fallback.`;
         }
       }
 
@@ -251,6 +323,32 @@ export default function TutorScreen() {
     return result.canceled ? null : result.assets[0].uri;
   };
 
+  const extractTextWithFallback = async (
+    imageUri: string
+  ): Promise<{ text: string; source: 'ocr' | 'vision' }> => {
+    try {
+      const ocrResult = await OCRService.extractTextFromImage(imageUri);
+      if (ocrResult.text && ocrResult.text.trim().length > 0) {
+        return { text: ocrResult.text, source: 'ocr' };
+      }
+    } catch (ocrError) {
+      console.log('Primary OCR failed, trying vision fallback...', ocrError);
+    }
+
+    const visionTextRaw = await VisionLanguageService.extractTextFromImage(imageUri);
+    const visionText = OCRService.cleanOCRText(visionTextRaw || '');
+
+    if (
+      !visionText ||
+      visionText.trim().length === 0 ||
+      /failed to extract text|no readable text found/i.test(visionText)
+    ) {
+      throw new Error('No readable text found from OCR or vision fallback');
+    }
+
+    return { text: visionText, source: 'vision' };
+  };
+
   const processOcrImage = async (imageUri: string) => {
     setLoading(true);
     try {
@@ -260,24 +358,32 @@ export default function TutorScreen() {
         { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
       );
 
-      const ocrResult = await OCRService.extractTextFromImage(manipulated.uri);
-      if (ocrResult.text) {
+      const extracted = await extractTextWithFallback(manipulated.uri);
+      const validation = OCRService.validateExtractedText(extracted.text);
+
+      if (validation.isValid) {
         Alert.alert(
-          'Text Scanned',
-          'Would you like to optimize this text (fix OCR errors) using AI?',
+          extracted.source === 'vision' ? 'Text Scanned (Fallback)' : 'Text Scanned',
+          'What would you like to do with this extracted text?',
           [
             {
-              text: 'Raw Text',
+              text: 'Insert Text',
               onPress: () => {
-                setInputText((prev) => (prev ? `${prev}\n\n${ocrResult.text}` : ocrResult.text));
+                setInputText((prev) => (prev ? `${prev}\n\n${extracted.text}` : extracted.text));
               },
             },
             {
-              text: 'Optimize with AI',
+              text: 'Ask AI Tutor',
+              onPress: async () => {
+                await handleSend(`Explain this extracted text:\n\n${extracted.text}`);
+              },
+            },
+            {
+              text: 'Fix OCR + Insert',
               onPress: async () => {
                 setLoading(true);
                 try {
-                  const result = await processDocument(ocrResult.text, 'correct');
+                  const result = await processDocument(extracted.text, 'correct');
                   setInputText((prev) => (prev ? `${prev}\n\n${result}` : result));
                 } finally {
                   setLoading(false);
@@ -287,15 +393,155 @@ export default function TutorScreen() {
           ]
         );
       } else {
-        Alert.alert('OCR Result', 'No text could be extracted. Try cropping closer to the text.');
+        Alert.alert('OCR Result', validation.message);
       }
     } catch (error) {
       console.error('OCR error:', error);
-      Alert.alert('Error', 'Failed to scan text. Make sure the text is clear and readable.');
+      Alert.alert('Error', 'Failed to scan text. Try a clearer image or better crop area.');
     } finally {
       setLoading(false);
     }
   };
+
+  const openOcrCropper = async (imageUri: string) => {
+    try {
+      const size = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+        Image.getSize(
+          imageUri,
+          (widthPx, heightPx) => resolve({ width: widthPx, height: heightPx }),
+          reject
+        );
+      });
+
+      setSourceImageSize(size);
+      setOcrCropImageUri(imageUri);
+      setShowOcrCropper(true);
+    } catch (error) {
+      console.error('Failed to open cropper:', error);
+      await processOcrImage(imageUri);
+    }
+  };
+
+  const getDisplayedImageMetrics = () => {
+    const scale = Math.min(
+      cropperLayout.width / sourceImageSize.width,
+      cropperLayout.height / sourceImageSize.height
+    );
+
+    const widthPx = sourceImageSize.width * scale;
+    const heightPx = sourceImageSize.height * scale;
+    const offsetX = (cropperLayout.width - widthPx) / 2;
+    const offsetY = (cropperLayout.height - heightPx) / 2;
+
+    return { scale, widthPx, heightPx, offsetX, offsetY };
+  };
+
+  const clampCropBox = (next: CropBox): CropBox => {
+    const { widthPx, heightPx, offsetX, offsetY } = getDisplayedImageMetrics();
+    const widthPxClamped = Math.max(OCR_CROP_MIN_SIZE, Math.min(next.width, widthPx));
+    const heightPxClamped = Math.max(OCR_CROP_MIN_SIZE, Math.min(next.height, heightPx));
+    const maxX = offsetX + widthPx - widthPxClamped;
+    const maxY = offsetY + heightPx - heightPxClamped;
+
+    return {
+      x: Math.max(offsetX, Math.min(next.x, maxX)),
+      y: Math.max(offsetY, Math.min(next.y, maxY)),
+      width: widthPxClamped,
+      height: heightPxClamped,
+    };
+  };
+
+  const resetCropBox = () => {
+    const { widthPx, heightPx, offsetX, offsetY } = getDisplayedImageMetrics();
+    const boxWidth = Math.max(120, widthPx * 0.75);
+    const boxHeight = Math.max(90, heightPx * 0.35);
+    const next = {
+      x: offsetX + (widthPx - boxWidth) / 2,
+      y: offsetY + (heightPx - boxHeight) / 2,
+      width: boxWidth,
+      height: boxHeight,
+    };
+    setCropBox(clampCropBox(next));
+  };
+
+  const applySelectedCropForOcr = async () => {
+    if (!ocrCropImageUri) return;
+
+    setLoading(true);
+    setShowOcrCropper(false);
+
+    try {
+      const { scale, offsetX, offsetY } = getDisplayedImageMetrics();
+      const selected = cropBoxRef.current;
+
+      const rawOriginX = Math.max(0, Math.round((selected.x - offsetX) / scale));
+      const rawOriginY = Math.max(0, Math.round((selected.y - offsetY) / scale));
+      const rawWidth = Math.max(1, Math.round(selected.width / scale));
+      const rawHeight = Math.max(1, Math.round(selected.height / scale));
+
+      // Clamp crop rectangle to the source image bounds to avoid invalid crop regions.
+      const originX = Math.min(rawOriginX, Math.max(0, sourceImageSize.width - 1));
+      const originY = Math.min(rawOriginY, Math.max(0, sourceImageSize.height - 1));
+      const width = Math.max(1, Math.min(rawWidth, sourceImageSize.width - originX));
+      const height = Math.max(1, Math.min(rawHeight, sourceImageSize.height - originY));
+
+      const crop = {
+        originX,
+        originY,
+        width,
+        height,
+      };
+
+      const cropped = await ImageManipulator.manipulateAsync(
+        ocrCropImageUri,
+        [{ crop }],
+        { compress: 0.9, format: ImageManipulator.SaveFormat.JPEG }
+      );
+
+      await processOcrImage(cropped.uri);
+    } catch (error) {
+      console.error('Crop+OCR error:', error);
+      Alert.alert('Error', 'Failed to crop selected area. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cropPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        cropStartRef.current = cropBoxRef.current;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const moved = {
+          ...cropStartRef.current,
+          x: cropStartRef.current.x + gestureState.dx,
+          y: cropStartRef.current.y + gestureState.dy,
+        };
+        setCropBox(clampCropBox(moved));
+      },
+    })
+  ).current;
+
+  const cropResizeResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        resizeStartRef.current = cropBoxRef.current;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const resized = {
+          ...resizeStartRef.current,
+          width: resizeStartRef.current.width + gestureState.dx,
+          height: resizeStartRef.current.height + gestureState.dy,
+        };
+        setCropBox(clampCropBox(resized));
+      },
+    })
+  ).current;
 
   const processMathImage = async (imageUri: string) => {
     setLoading(true);
@@ -306,8 +552,8 @@ export default function TutorScreen() {
         { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
       );
 
-      const ocrResult = await OCRService.extractTextFromImage(manipulated.uri);
-      const detection = detectMathExpression(ocrResult.text);
+      const extracted = await extractTextWithFallback(manipulated.uri);
+      const detection = detectMathExpression(extracted.text);
 
       if (!detection) {
         Alert.alert(
@@ -320,14 +566,14 @@ export default function TutorScreen() {
       const solution = solveMathDetection(detection);
       if (!solution) {
         try {
-          const aiResponse = await sendQuestion(`Solve and explain this math problem Step-by-Step: ${ocrResult.text}`);
+          const aiResponse = await sendQuestion(`Solve and explain this math problem Step-by-Step: ${extracted.text}`);
           const userMsg: Message = {
             id: Date.now().toString(),
             text: 'Math problem from image (Algebraic)',
             isUser: true,
             timestamp: new Date(),
             imageUri: manipulated.uri,
-            extractedText: ocrResult.text,
+            extractedText: extracted.text,
           };
           const aiMsg: Message = {
             id: (Date.now() + 1).toString(),
@@ -350,7 +596,7 @@ export default function TutorScreen() {
         isUser: true,
         timestamp: new Date(),
         imageUri: manipulated.uri,
-        extractedText: ocrResult.text,
+        extractedText: extracted.text,
       };
 
       const aiMessage: Message = {
@@ -377,7 +623,7 @@ export default function TutorScreen() {
       return;
     }
     if (task === 'ocr') {
-      await processOcrImage(imageUri);
+      await openOcrCropper(imageUri);
       return;
     }
     await processMathImage(imageUri);
@@ -521,33 +767,74 @@ export default function TutorScreen() {
     },
   ];
 
+  const themedStyles = useMemo(
+    () => ({
+      container: { backgroundColor: chatTheme.background },
+      header: {
+        backgroundColor: chatTheme.header,
+        borderBottomColor: chatTheme.headerBorder,
+      },
+      headerActionCircle: {
+        backgroundColor: chatTheme.actionBg,
+        borderColor: chatTheme.headerBorder,
+      },
+      askImageBadge: {
+        backgroundColor: chatTheme.badgeBg,
+      },
+      headerTitleText: { color: chatTheme.badgeText },
+      modelText: { color: chatTheme.textMuted },
+      iconText: { color: chatTheme.text },
+      emptyTitle: { color: chatTheme.text },
+      emptySubtitle: { color: chatTheme.textMuted },
+      heroIconBg: {
+        backgroundColor: chatTheme.panel,
+        borderColor: chatTheme.panelBorder,
+      },
+      topicCard: {
+        backgroundColor: chatTheme.panel,
+        borderColor: chatTheme.panelBorder,
+      },
+      topicLabel: { color: chatTheme.text },
+      modelLabel: { color: chatTheme.textMuted },
+      loadingText: { color: chatTheme.textMuted },
+      inputWrapper: { backgroundColor: chatTheme.background },
+      inputRow: {
+        backgroundColor: chatTheme.inputBg,
+        borderColor: chatTheme.inputBorder,
+      },
+      inputText: { color: chatTheme.text },
+      sendBtn: { backgroundColor: chatTheme.accent },
+    }),
+    [chatTheme]
+  );
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="light-content" />
+    <SafeAreaView style={[styles.container, themedStyles.container]} edges={['top']}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
       {/* Screenshot-style Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => { }} style={styles.headerAction}>
-          <Ionicons name="arrow-back" size={24} color={Colors.white} />
+      <View style={[styles.header, themedStyles.header]}>
+        <TouchableOpacity onPress={() => router.push('/dashboard')} style={styles.headerAction}>
+          <Ionicons name="arrow-back" size={24} color={chatTheme.text} />
         </TouchableOpacity>
 
         <View style={styles.headerTitleContainer}>
-          <View style={styles.askImageBadge}>
-            <Ionicons name="image" size={14} color={Colors.white} style={{ marginRight: 4 }} />
-            <Text style={styles.headerTitleText}>Ask Image</Text>
+          <View style={[styles.askImageBadge, themedStyles.askImageBadge]}>
+            <Ionicons name="sparkles" size={14} color={chatTheme.badgeText} style={{ marginRight: 4 }} />
+            <Text style={[styles.headerTitleText, themedStyles.headerTitleText]}>AI Tutor</Text>
           </View>
           <TouchableOpacity style={styles.modelSelector}>
-            <Text style={styles.modelSelectorText}>Gemma-E2B-it</Text>
-            <Ionicons name="chevron-down" size={12} color={Colors.gray200} />
+            <Text style={[styles.modelSelectorText, themedStyles.modelText]}>{offlineMode ? 'Offline Mode' : 'Online Mode'}</Text>
+            <Ionicons name="chevron-down" size={12} color={chatTheme.textMuted} />
           </TouchableOpacity>
         </View>
 
         <View style={styles.headerRightActions}>
-          <TouchableOpacity style={styles.headerAction}>
-            <Ionicons name="options-outline" size={22} color={Colors.white} />
+          <TouchableOpacity style={[styles.headerAction, styles.plusBtnCircle, themedStyles.headerActionCircle]} onPress={toggleTheme}>
+            <Ionicons name={isDark ? 'sunny-outline' : 'moon-outline'} size={20} color={chatTheme.text} />
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.headerAction, styles.plusBtnCircle]}>
-            <Ionicons name="add" size={22} color={Colors.white} />
+          <TouchableOpacity style={[styles.headerAction, styles.plusBtnCircle, themedStyles.headerActionCircle]} onPress={handleNewChat}>
+            <Ionicons name="add" size={22} color={chatTheme.text} />
           </TouchableOpacity>
         </View>
       </View>
@@ -565,11 +852,12 @@ export default function TutorScreen() {
             <View style={styles.welcomeHero}>
               <View style={styles.heroIconContainer}>
                 <View style={styles.heroIconBg}>
+                  <View style={[StyleSheet.absoluteFillObject as any, themedStyles.heroIconBg, { borderRadius: 50, borderWidth: 1 }]} />
                   <TutorBotIllustration width={80} height={80} />
                 </View>
               </View>
-              <Text style={styles.welcomeTitle}>New Session</Text>
-              <Text style={styles.welcomeSubtitle}>
+              <Text style={[styles.welcomeTitle, themedStyles.emptyTitle]}>New Session</Text>
+              <Text style={[styles.welcomeSubtitle, themedStyles.emptySubtitle]}>
                 Type a message or upload an image to start learning with Shiksha AI.
               </Text>
             </View>
@@ -578,11 +866,11 @@ export default function TutorScreen() {
               {QUICK_TOPICS.map((topic, index) => (
                 <TouchableOpacity
                   key={index}
-                  style={styles.topicCard}
+                  style={[styles.topicCard, themedStyles.topicCard]}
                   onPress={() => handleSend(topic.query)}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.topicLabel}>{topic.emoji} {topic.label}</Text>
+                  <Text style={[styles.topicLabel, themedStyles.topicLabel]}>{topic.emoji} {topic.label}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -595,7 +883,7 @@ export default function TutorScreen() {
             renderItem={({ item }) => (
               <View>
                 {!item.isUser && (
-                  <Text style={styles.modelPlatformLabel}>Model on CPU</Text>
+                  <Text style={[styles.modelPlatformLabel, themedStyles.modelLabel]}>{offlineMode ? 'Model on Device' : 'Model on Cloud'}</Text>
                 )}
                 <ChatBubble
                   text={item.text}
@@ -615,24 +903,31 @@ export default function TutorScreen() {
 
         {loading && (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color={Colors.primary} />
-            <Text style={styles.loadingText}>Thinking...</Text>
+            <ActivityIndicator size="small" color={chatTheme.accent} />
+            <Text style={[styles.loadingText, themedStyles.loadingText]}>Thinking...</Text>
           </View>
         )}
 
-        <View style={styles.inputWrapper}>
-          <View style={styles.inputRow}>
+        <View style={[styles.inputWrapper, themedStyles.inputWrapper]}>
+          <View style={[styles.inputRow, themedStyles.inputRow]}>
             <TouchableOpacity
               onPress={handleImagePick}
               style={styles.plusBtn}
             >
-              <Ionicons name="add" size={28} color={Colors.gray200} />
+              <Ionicons name="add" size={28} color={chatTheme.textMuted} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={handleScanText}
+              style={styles.ocrBtn}
+            >
+              <Ionicons name="scan-outline" size={20} color={chatTheme.textMuted} />
             </TouchableOpacity>
 
             <TextInput
-              style={styles.inputField}
+              style={[styles.inputField, themedStyles.inputText]}
               placeholder="Type prompt..."
-              placeholderTextColor={Colors.gray400}
+              placeholderTextColor={chatTheme.textMuted}
               value={inputText}
               onChangeText={setInputText}
               multiline
@@ -640,7 +935,7 @@ export default function TutorScreen() {
 
             {!inputText.trim() && (
               <TouchableOpacity onPress={startListening} style={styles.micBtn}>
-                <Ionicons name="mic-outline" size={24} color={Colors.gray200} />
+                <Ionicons name="mic-outline" size={24} color={chatTheme.textMuted} />
               </TouchableOpacity>
             )}
 
@@ -648,9 +943,9 @@ export default function TutorScreen() {
               <TouchableOpacity
                 onPress={() => handleSend()}
                 disabled={loading}
-                style={styles.sendIconBtn}
+                style={[styles.sendIconBtn, themedStyles.sendBtn]}
               >
-                <Ionicons name="send" size={20} color={Colors.gray200} />
+                <Ionicons name="send" size={20} color={isDark ? '#03111A' : '#FFFFFF'} />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -694,6 +989,66 @@ export default function TutorScreen() {
             </TouchableOpacity>
           </View>
         </View>
+      </Modal>
+
+      <Modal
+        visible={showOcrCropper}
+        animationType="slide"
+        onRequestClose={() => setShowOcrCropper(false)}
+      >
+        <SafeAreaView style={styles.cropperContainer}>
+          <View style={styles.cropperHeader}>
+            <TouchableOpacity onPress={() => setShowOcrCropper(false)} style={styles.cropperHeaderBtn}>
+              <Ionicons name="close" size={22} color={Colors.gray900} />
+            </TouchableOpacity>
+            <Text style={styles.cropperTitle}>Select OCR Area</Text>
+            <TouchableOpacity onPress={resetCropBox} style={styles.cropperHeaderBtn}>
+              <Ionicons name="refresh" size={20} color={Colors.primary} />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.cropperHint}>Drag to move. Pull the bottom-right handle to resize.</Text>
+
+          <View
+            style={styles.cropperCanvas}
+            onLayout={(event) => {
+              const { width: layoutWidth, height: layoutHeight } = event.nativeEvent.layout;
+              setCropperLayout({ width: layoutWidth, height: layoutHeight });
+              setTimeout(resetCropBox, 0);
+            }}
+          >
+            {ocrCropImageUri ? (
+              <Image source={{ uri: ocrCropImageUri }} style={styles.cropperImage} resizeMode="contain" />
+            ) : null}
+
+            <View
+              style={[
+                styles.cropSelection,
+                {
+                  left: cropBox.x,
+                  top: cropBox.y,
+                  width: cropBox.width,
+                  height: cropBox.height,
+                },
+              ]}
+              {...cropPanResponder.panHandlers}
+            >
+              <Text style={styles.cropSelectionLabel}>Move</Text>
+              <View style={styles.cropResizeHandle} {...cropResizeResponder.panHandlers}>
+                <Ionicons name="resize" size={13} color={Colors.white} />
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.cropperActions}>
+            <TouchableOpacity style={styles.cropCancelBtn} onPress={() => setShowOcrCropper(false)}>
+              <Text style={styles.cropCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.cropApplyBtn} onPress={applySelectedCropForOcr}>
+              <Text style={styles.cropApplyText}>Scan Selected Part</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
       </Modal>
 
       <SpotlightTutorial
@@ -891,6 +1246,14 @@ const styles = StyleSheet.create({
   plusBtn: {
     marginRight: 10,
   },
+  ocrBtn: {
+    marginRight: 10,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   inputField: {
     flex: 1,
     color: Colors.gray900,
@@ -967,5 +1330,113 @@ const styles = StyleSheet.create({
     height: 62,
     borderRadius: 31,
     backgroundColor: Colors.white,
+  },
+  cropperContainer: {
+    flex: 1,
+    backgroundColor: Colors.white,
+  },
+  cropperHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.gray100,
+  },
+  cropperHeaderBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.gray50,
+  },
+  cropperTitle: {
+    fontSize: 18,
+    color: Colors.gray900,
+    fontWeight: '700',
+  },
+  cropperHint: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    color: Colors.gray500,
+    fontSize: 13,
+  },
+  cropperCanvas: {
+    flex: 1,
+    marginHorizontal: 12,
+    marginVertical: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: Colors.black,
+  },
+  cropperImage: {
+    width: '100%',
+    height: '100%',
+  },
+  cropSelection: {
+    position: 'absolute',
+    borderWidth: 2,
+    borderColor: '#34D399',
+    backgroundColor: 'rgba(52, 211, 153, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cropResizeHandle: {
+    position: 'absolute',
+    right: -10,
+    bottom: -10,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#10B981',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.9)',
+  },
+  cropSelectionLabel: {
+    color: Colors.white,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    fontSize: 12,
+    fontWeight: '700',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  cropperActions: {
+    paddingHorizontal: 16,
+    paddingBottom: 20,
+    flexDirection: 'row',
+    gap: 10,
+  },
+  cropCancelBtn: {
+    flex: 1,
+    height: 50,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.gray200,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.white,
+  },
+  cropCancelText: {
+    color: Colors.gray700,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  cropApplyBtn: {
+    flex: 1.7,
+    height: 50,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.primary,
+  },
+  cropApplyText: {
+    color: Colors.white,
+    fontSize: 15,
+    fontWeight: '700',
   },
 });
