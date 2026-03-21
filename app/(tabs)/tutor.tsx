@@ -18,7 +18,7 @@ import {
   PanResponder,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons, Ionicons, FontAwesome5, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -114,6 +114,7 @@ const QUICK_TOPICS = [
 
 export default function TutorScreen() {
   const { isDark, toggleTheme } = useAppTheme();
+  const router = useRouter();
   const chatTheme = isDark ? CHAT_THEMES.dark : CHAT_THEMES.light;
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -813,7 +814,7 @@ export default function TutorScreen() {
 
       {/* Screenshot-style Header */}
       <View style={[styles.header, themedStyles.header]}>
-        <TouchableOpacity onPress={() => { }} style={styles.headerAction}>
+        <TouchableOpacity onPress={() => router.push('/dashboard')} style={styles.headerAction}>
           <Ionicons name="arrow-back" size={24} color={chatTheme.text} />
         </TouchableOpacity>
 

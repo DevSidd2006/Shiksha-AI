@@ -99,7 +99,7 @@ export default function ProfileScreen() {
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.contentContainer}>
-        <LinearGradient colors={theme.headerGradient as any} style={styles.header}>
+        <View style={styles.header}>
           <View style={styles.headerTop}>
             <View style={styles.brandWrap}>
               <View style={styles.brandIcon}>
@@ -121,10 +121,10 @@ export default function ProfileScreen() {
             </View>
             <View style={styles.profileMeta}>
               <Text style={styles.userName}>{profile?.name || 'Student'}</Text>
-              <Text style={styles.userGrade}>{profile?.grade || 'Class 8'}</Text>
+              <Text style={styles.userGrade}>{profile?.grade || 'Class 5-9'}</Text>
             </View>
           </LinearGradient>
-        </LinearGradient>
+        </View>
 
         <View style={styles.section}>
           <View style={styles.statsCard}>
@@ -269,6 +269,7 @@ const createStyles = (theme: ThemePalette) =>
     header: {
       paddingHorizontal: 16,
       paddingBottom: 14,
+      backgroundColor: theme.headerGradient[0],
       borderBottomWidth: 1,
       borderBottomColor: theme.border,
     },

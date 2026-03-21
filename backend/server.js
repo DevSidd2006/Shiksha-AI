@@ -21,7 +21,7 @@ app.use(express.json({ limit: '50mb' })); // Increased limit for base64 images
 
 // Ollama configuration
 const OLLAMA_HOST = process.env.OLLAMA_HOST || 'http://localhost:11434';
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5-1.5b-instruct:q4_k_m';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'hf.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M';
 const TRANSLATOR_SERVICE_URL = process.env.TRANSLATOR_SERVICE_URL || 'http://localhost:3001';
 
 const NLLB_TO_ISO = {
@@ -121,11 +121,12 @@ CORE INSTRUCTIONS:
 - Use simple analogies to explain complex scientific or mathematical concepts.
 
 MATH FORMATTING RULE:
-- ALWAYS enclose ALL mathematical expressions, equations, formulas, variables, and fractions in LaTeX format.
-- For stand-alone equations (Display Mode), wrap them in dual dollar signs: e.g., $$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$
-- For expressions or variables within sentences (Inline Mode), wrap them in single dollar signs: e.g., Solve for $x$ given $2x + 4 = 10$.
-- DO NOT output raw fractions as x = 96/13. Instead, use $\\frac{96}{13}$ or $x = \\frac{96}{13}$.
-- ALWAYS use proper LaTeX operators (e.g., \\cdot for multiplication, \\pm for plus-minus, \\sqrt for square root).
+- Use LaTeX only for full equations or non-trivial expressions.
+- Do NOT wrap every single symbol/variable (like u, v, t, a) in separate LaTeX blocks.
+- Prefer plain readable steps with short lines.
+- For stand-alone equations, use display mode when helpful: e.g., $$s = ut + \\frac{1}{2}at^2$$
+- For fractions and square roots, use proper LaTeX (e.g., $\\frac{96}{13}$, $\\sqrt{x}$).
+- Avoid excessive equation boxes. Keep math formatting minimal and clear.
 
 Mantra: Short, complete, and formatted correctly with LaTeX.`;
 };
@@ -170,16 +171,25 @@ const translateText = async (text, targetLang) => {
 
 // Generate answer using Ollama
 const generateWithOllama = async (question, studentGrade = 'Class 9') => {
+  const systemPrompt = getSystemPrompt(studentGrade);
+
+  const getErrorMessage = (error) => {
+    const status = error?.response?.status;
+    const data = error?.response?.data;
+    const dataText = typeof data === 'string' ? data : JSON.stringify(data || {});
+    return `status=${status || 'n/a'} details=${dataText}`;
+  };
+
   try {
     const response = await axios.post(
       `${OLLAMA_HOST}/api/generate`,
       {
         model: OLLAMA_MODEL,
-        prompt: `${getSystemPrompt(studentGrade)}\n\nStudent question: ${question}`,
+        prompt: `${systemPrompt}\n\nStudent question: ${question}`,
         stream: false,
         options: {
           temperature: 0.6,
-          num_predict: 384,
+          num_predict: 256,
         },
       },
       { timeout: 120000 }
@@ -194,7 +204,7 @@ const generateWithOllama = async (question, studentGrade = 'Class 9') => {
         `${OLLAMA_HOST}/api/generate`,
         {
           model: OLLAMA_MODEL,
-          prompt: `${getSystemPrompt(studentGrade)}\n\nStudent question: ${question}\n\nReturn a short direct answer in 3-5 lines.`,
+          prompt: `${systemPrompt}\n\nStudent question: ${question}\n\nReturn a short direct answer in 3-5 lines.`,
           stream: false,
           options: {
             temperature: 0.4,
@@ -220,7 +230,68 @@ const generateWithOllama = async (question, studentGrade = 'Class 9') => {
       timestamp: new Date().toISOString(),
     };
   } catch (error) {
-    console.error('Ollama error:', error.message);
+    console.error('Ollama primary error:', error.message, getErrorMessage(error));
+
+    // Fallback #1: simplified generate request with no options
+    try {
+      const simple = await axios.post(
+        `${OLLAMA_HOST}/api/generate`,
+        {
+          model: OLLAMA_MODEL,
+          prompt: `You are a concise Class 9 tutor. Answer clearly in short steps.\n\nQuestion: ${question}`,
+          stream: false,
+        },
+        { timeout: 120000 }
+      );
+
+      const answer = typeof simple?.data?.response === 'string' ? simple.data.response.trim() : '';
+      if (answer) {
+        return {
+          answer,
+          model: OLLAMA_MODEL,
+          source: 'ollama',
+          timestamp: new Date().toISOString(),
+        };
+      }
+    } catch (simpleError) {
+      console.error('Ollama fallback-generate error:', simpleError.message, getErrorMessage(simpleError));
+    }
+
+    // Fallback #2: chat endpoint for instruct-style models
+    try {
+      const chatResponse = await axios.post(
+        `${OLLAMA_HOST}/api/chat`,
+        {
+          model: OLLAMA_MODEL,
+          stream: false,
+          messages: [
+            { role: 'system', content: 'You are a concise AI Tutor for Class 9 students. Keep the answer accurate and short.' },
+            { role: 'user', content: question },
+          ],
+          options: {
+            temperature: 0.4,
+            num_predict: 192,
+          },
+        },
+        { timeout: 120000 }
+      );
+
+      const answer = typeof chatResponse?.data?.message?.content === 'string'
+        ? chatResponse.data.message.content.trim()
+        : '';
+
+      if (answer) {
+        return {
+          answer,
+          model: OLLAMA_MODEL,
+          source: 'ollama',
+          timestamp: new Date().toISOString(),
+        };
+      }
+    } catch (chatError) {
+      console.error('Ollama fallback-chat error:', chatError.message, getErrorMessage(chatError));
+    }
+
     if (error.code === 'ECONNABORTED' || /timeout/i.test(error.message || '')) {
       const timeoutError = new Error('Ollama response timed out.');
       timeoutError.code = 'OLLAMA_TIMEOUT';
@@ -375,8 +446,8 @@ app.post('/translate', async (req, res) => {
   }
 });
 
-// Vision endpoint using qwen2.5-1.5b-instruct:q4_k_m (proxied to Ollama)
-const VISION_MODEL = process.env.OLLAMA_MODEL || 'qwen2.5-1.5b-instruct:q4_k_m';
+// Vision endpoint using hf.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M (proxied to Ollama)
+const VISION_MODEL = process.env.OLLAMA_MODEL || 'hf.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M';
 
 app.post('/vision', async (req, res) => {
   try {

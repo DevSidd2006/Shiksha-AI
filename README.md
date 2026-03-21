@@ -5,7 +5,7 @@ Offline-first AI tutor app for Class 9-10 students.
 ## What This Repo Contains
 - `app/`: Expo Router screens and navigation.
 - `src/features/`: feature-oriented modules (AI, chat, content, progress, user, auth, onboarding).
-- `src/core/`: shared core infrastructure (database, sync, supabase integration).
+- `src/core/`: shared core infrastructure (database and local sync abstraction).
 - `src/shared/`: cross-feature shared utilities/styles.
 - `backend/`: Express API for tutor, OCR, and vision endpoints.
 - `android/`, `ios/`: native projects.
@@ -23,7 +23,7 @@ Offline-first AI tutor app for Class 9-10 students.
 - Mobile: React Native + Expo (SDK 54), Expo Router, TypeScript
 - Local storage: Expo SQLite + AsyncStorage
 - Backend: Node.js + Express + Axios + Tesseract.js
-- AI runtime: Ollama (`qwen2.5:1.5b` default)
+- AI runtime: Ollama (`hf.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M` default)
 
 ## Quick Start
 ### 1. Install dependencies
@@ -42,7 +42,7 @@ Use your machine's LAN URL instead of `10.0.2.2` when testing on a physical devi
 
 ### 3. Start local model runtime
 ```bash
-ollama pull qwen2.5:1.5b
+ollama pull hf.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M
 ollama serve
 ```
 
@@ -96,7 +96,7 @@ Legacy detailed docs kept for reference:
 
 ## Troubleshooting
 - Ollama not reachable: run `ollama serve`
-- Model missing: run `ollama pull qwen2.5:1.5b`
+- Model missing: run `ollama pull hf.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M`
 - Backend errors: confirm `npm run backend` is running on port `3000`
 - Android emulator networking: use `10.0.2.2` instead of `localhost`
 - Physical-device OCR/vision requests: set `EXPO_PUBLIC_API_URL` to your computer's LAN address, not `localhost`

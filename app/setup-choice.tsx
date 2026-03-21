@@ -132,7 +132,7 @@ export default function SetupChoiceScreen() {
                         </View>
                         <Text style={styles.title}>Choose Your AI Engine</Text>
                         <Text style={styles.subtitle}>
-                            How would you like Shiksha AI to answer your questions?
+                            Pick cloud mode or download one of the local models to run fully offline.
                         </Text>
                     </View>
 
@@ -171,7 +171,7 @@ export default function SetupChoiceScreen() {
                                 </View>
                             </View>
                             <Text style={styles.optionDesc}>
-                                Downloads the 940MB model to your phone from S3. Runs entirely offline forever. Free & private.
+                                Downloads models from S3 to your phone. Available: Qwen 2.5 (1.5B, Q4_K_M, ~940MB) and Llama 3.2 (1B, Q5_K_S, ~800MB).
                             </Text>
                         </View>
                         <MaterialIcons name="download" size={24} color="#10B981" />

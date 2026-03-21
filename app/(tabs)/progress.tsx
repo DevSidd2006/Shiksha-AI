@@ -142,30 +142,31 @@ export default function ProgressScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-      <LinearGradient colors={theme.headerGradient as any} style={styles.header}>
+      <View style={styles.header}>
         <View style={styles.headerTop}>
-          <View style={styles.brandWrap}>
-            <View style={styles.brandIcon}>
-              <Ionicons name="stats-chart" size={15} color={theme.accent} />
-            </View>
-            <Text style={styles.brandText}>Stats</Text>
+          <View>
+            <Text style={styles.headerKicker}>Personal Dashboard</Text>
+            <Text style={styles.headerTitle}>Growth Tracking</Text>
           </View>
 
           <View style={styles.headerActions}>
+            <TouchableOpacity style={styles.historyPill} onPress={() => router.push('/history')}>
+              <Ionicons name="time-outline" size={16} color={theme.text} />
+              <Text style={styles.historyPillText}>History</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.iconBtn} onPress={toggleTheme}>
               <Ionicons name={isDark ? 'sunny' : 'moon'} size={16} color={theme.text} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/history')}>
-              <Ionicons name="time-outline" size={16} color={theme.text} />
-            </TouchableOpacity>
           </View>
         </View>
+      </View>
 
+      <View style={styles.heroWrap}>
         <LinearGradient colors={theme.cardGradient as any} style={styles.heroCard}>
           <Text style={styles.heroTitle}>Learning Progress</Text>
           <Text style={styles.heroSubtitle}>{motivationalMessage}</Text>
         </LinearGradient>
-      </LinearGradient>
+      </View>
 
       <View style={styles.tabWrap}>
         <View style={styles.tabRow}>
@@ -355,7 +356,8 @@ const createStyles = (theme: ThemePalette) =>
     },
     header: {
       paddingHorizontal: 16,
-      paddingBottom: 18,
+      paddingBottom: 14,
+      backgroundColor: theme.headerGradient[0],
       borderBottomWidth: 1,
       borderBottomColor: theme.border,
     },
@@ -366,27 +368,37 @@ const createStyles = (theme: ThemePalette) =>
       paddingTop: 4,
       marginBottom: 12,
     },
-    brandWrap: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
+    headerKicker: {
+      color: theme.textMuted,
+      fontSize: 13,
+      fontWeight: '600',
+      marginBottom: 4,
     },
-    brandIcon: {
-      width: 28,
-      height: 28,
-      borderRadius: 14,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: theme.chipBg,
-    },
-    brandText: {
+    headerTitle: {
       color: theme.text,
-      fontSize: 16,
-      fontWeight: '700',
+      fontSize: 22,
+      fontWeight: '800',
     },
     headerActions: {
       flexDirection: 'row',
+      alignItems: 'center',
       gap: 8,
+    },
+    historyPill: {
+      height: 34,
+      borderRadius: 12,
+      paddingHorizontal: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: theme.panel,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    historyPillText: {
+      color: theme.text,
+      fontSize: 13,
+      fontWeight: '700',
     },
     iconBtn: {
       width: 34,
@@ -397,6 +409,10 @@ const createStyles = (theme: ThemePalette) =>
       backgroundColor: theme.panel,
       borderWidth: 1,
       borderColor: theme.border,
+    },
+    heroWrap: {
+      paddingHorizontal: 16,
+      paddingTop: 12,
     },
     heroCard: {
       borderRadius: 18,

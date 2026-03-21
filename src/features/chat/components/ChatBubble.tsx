@@ -1,11 +1,11 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Share } from 'react-native';
+import React, { useMemo, useState, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Share, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { SpeechToTextService } from '@/features/ai';
 import { translateText } from '@/features/ai';
 import { Colors, Spacing, BorderRadius, useAppTheme } from '@/shared';
-import KaTeX from 'react-native-katex';
+import { WebView } from 'react-native-webview';
 
 interface ChatBubbleProps {
   text: string;
@@ -21,29 +21,127 @@ interface FormulaRendererProps {
   formula: string;
   displayMode: boolean;
   isDark: boolean;
-  inlineStyle: string;
-  style: any;
+  bgColor: string;
+  textColor: string;
   fallbackTextStyle: any;
 }
 
-function FormulaRenderer({ formula, displayMode, isDark, inlineStyle, style, fallbackTextStyle }: FormulaRendererProps) {
+const KATEX_CDN = 'https://cdn.jsdelivr.net/npm/katex@0.16.11/dist';
+
+function buildKaTeXHTML(formula: string, displayMode: boolean, bgColor: string, textColor: string): string {
+  const escapedFormula = formula
+    .replace(/\\/g, '\\\\')
+    .replace(/`/g, '\\`')
+    .replace(/\$/g, '\\$');
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <link rel="stylesheet" href="${KATEX_CDN}/katex.min.css">
+  <script src="${KATEX_CDN}/katex.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      background: ${bgColor};
+      width: 100%;
+      overflow-x: hidden;
+    }
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: ${displayMode ? '8px 4px' : '2px 4px'};
+    }
+    #formula {
+      color: ${textColor} !important;
+    }
+    .katex, .katex * {
+      color: ${textColor} !important;
+    }
+    .katex-display {
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    .katex {
+      font-size: ${displayMode ? '1.15em' : '1.0em'};
+    }
+  </style>
+</head>
+<body>
+  <div id="formula"></div>
+  <script>
+    try {
+      katex.render(\`${escapedFormula}\`, document.getElementById('formula'), {
+        displayMode: ${displayMode},
+        throwOnError: false,
+        strict: false,
+        output: 'html',
+      });
+      // Send the measured height back to React Native
+      setTimeout(function() {
+        var h = document.body.scrollHeight;
+        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'height', value: h }));
+      }, 100);
+    } catch(e) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'error', value: e.message }));
+    }
+  </script>
+</body>
+</html>
+`;
+}
+
+function FormulaRenderer({ formula, displayMode, isDark, bgColor, textColor, fallbackTextStyle }: FormulaRendererProps) {
   const [failed, setFailed] = useState(false);
+  const [height, setHeight] = useState(displayMode ? 60 : 28);
+  const [loading, setLoading] = useState(true);
+
+  const html = useMemo(
+    () => buildKaTeXHTML(formula, displayMode, bgColor, textColor),
+    [formula, displayMode, bgColor, textColor]
+  );
+
+  const onMessage = useCallback((event: any) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      if (data.type === 'height') {
+        setHeight(Math.max(data.value, displayMode ? 40 : 24));
+        setLoading(false);
+      } else if (data.type === 'error') {
+        setFailed(true);
+        setLoading(false);
+      }
+    } catch {
+      setFailed(true);
+      setLoading(false);
+    }
+  }, [displayMode]);
 
   if (failed) {
     return <Text style={fallbackTextStyle}>{formula}</Text>;
   }
 
   return (
-    <KaTeX
-      expression={formula}
-      style={style}
-      inlineStyle={inlineStyle}
-      errorColor={isDark ? '#FCA5A5' : '#B91C1C'}
-      displayMode={displayMode}
-      throwOnError={false}
-      strict={false}
-      onError={() => setFailed(true)}
-    />
+    <View style={{ width: '100%', height, position: 'relative' }}>
+      {loading && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', zIndex: 1 }}>
+          <ActivityIndicator size="small" color={textColor} />
+        </View>
+      )}
+      <WebView
+        source={{ html }}
+        style={{ width: '100%', height, backgroundColor: bgColor, opacity: loading ? 0 : 1 }}
+        scrollEnabled={false}
+        showsHorizontalScrollIndicator={false}
+        showsVerticalScrollIndicator={false}
+        onMessage={onMessage}
+        onError={() => { setFailed(true); setLoading(false); }}
+        originWhitelist={['*']}
+        javaScriptEnabled={true}
+      />
+    </View>
   );
 }
 
@@ -82,32 +180,9 @@ export function ChatBubble({ text, isUser, timestamp, imageUri, extractedText, p
     };
 
   const styles = useMemo(() => createStyles(bubbleTheme), [bubbleTheme]);
-  const katexInlineStyle = useMemo(
-    () => `
-html, body {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100%;
-  margin: 0;
-  padding: 0;
-  background-color: ${bubbleTheme.mathBg} !important;
-  color: ${bubbleTheme.formulaColor} !important;
-}
-.katex {
-  margin: 0;
-  display: flex;
-  color: ${bubbleTheme.formulaColor} !important;
-}
-.katex * {
-  color: ${bubbleTheme.formulaColor} !important;
-}
-.katex-display {
-  margin: 0 !important;
-}
-`,
-    [bubbleTheme.formulaColor, bubbleTheme.mathBg]
-  );
+  // KaTeX colors derived from theme – used by FormulaRenderer
+  const katexBgColor = bubbleTheme.mathBg;
+  const katexTextColor = bubbleTheme.formulaColor;
 
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [translatedText, setTranslatedText] = useState<string | null>(null);
@@ -265,9 +340,7 @@ html, body {
 
               if (isSimpleMathText(cleanFormula) || isLikelyMalformedLatex(cleanFormula)) {
                 return (
-                  <View key={index} style={styles.mathBlock}>
-                    <Text style={styles.mathFallbackText}>{cleanFormula}</Text>
-                  </View>
+                  <Text key={index} style={styles.mathPlainText}>{cleanFormula}</Text>
                 );
               }
 
@@ -277,8 +350,8 @@ html, body {
                     formula={cleanFormula}
                     displayMode={true}
                     isDark={isDark}
-                    inlineStyle={katexInlineStyle}
-                    style={styles.katex}
+                    bgColor={katexBgColor}
+                    textColor={katexTextColor}
                     fallbackTextStyle={styles.mathFallbackText}
                   />
                 </View>
@@ -296,9 +369,7 @@ html, body {
 
               if (isSimpleMathText(cleanFormula) || isLikelyMalformedLatex(cleanFormula)) {
                 return (
-                  <View key={index} style={styles.inlineMathWrapper}>
-                    <Text style={styles.inlineMathText}>{cleanFormula}</Text>
-                  </View>
+                  <Text key={index} style={styles.inlineMathPlainText}>{cleanFormula}</Text>
                 );
               }
 
@@ -308,8 +379,8 @@ html, body {
                     formula={cleanFormula}
                     displayMode={false}
                     isDark={isDark}
-                    inlineStyle={katexInlineStyle}
-                    style={styles.katexInline}
+                    bgColor={katexBgColor}
+                    textColor={katexTextColor}
                     fallbackTextStyle={styles.inlineMathText}
                   />
                 </View>
@@ -567,26 +638,29 @@ const createStyles = (theme: {
     paddingHorizontal: 4,
     backgroundColor: theme.mathBg,
     borderRadius: 4,
-    height: 32,
+    minHeight: 32,
     minWidth: 24,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 0.5,
     borderColor: theme.mathBorder,
-  },
-  katex: {
-    width: '100%',
-    height: 100,
-    backgroundColor: theme.mathBg,
-  },
-  katexInline: {
-    width: 96,
-    height: 30,
-    backgroundColor: theme.mathBg,
+    overflow: 'hidden',
   },
   mathFallbackText: {
     color: theme.formulaColor,
-    fontSize: 24,
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  mathPlainText: {
+    color: theme.formulaColor,
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: '600',
+    marginVertical: 4,
+  },
+  inlineMathPlainText: {
+    color: theme.formulaColor,
+    fontSize: 16,
     fontWeight: '600',
   },
   inlineMathText: {

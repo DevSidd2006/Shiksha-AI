@@ -26,7 +26,7 @@ EXPO_PUBLIC_API_URL=http://10.0.2.2:3000
 ## Run Locally
 1. Start Ollama:
 ```bash
-ollama pull qwen2.5:1.5b
+ollama pull hf.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M
 ollama serve
 ```
 2. Start backend:

@@ -17,17 +17,24 @@ export interface Model {
 // Models are hosted on S3 and downloaded to the phone on first launch.
 // After download, they run 100% offline via llama.cpp.
 // ---------------------------------------------------------------------------
-const S3_BASE = 'https://shiksha-ai-models-rushikesh4537.s3.eu-north-1.amazonaws.com';
-
 const PRESET_MODELS: Model[] = [
   {
     id: 'qwen-2.5-1.5b-q4',
     name: 'Qwen 2.5 (1.5B) - Q4 (Recommended)',
     localPath: null,
-    remoteUrl: `${S3_BASE}/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf`,
+    remoteUrl: 'https://pcu-hack.s3.ap-south-1.amazonaws.com/Qwen2.5-1.5B-Instruct.Q4_K_M.gguf',
     size: '940 MB',
     status: 'not-downloaded',
     isDefault: true,
+  },
+  {
+    id: 'llama-3.2-1b-q5',
+    name: 'Llama 3.2 (1B) - Q5 (Fast)',
+    localPath: null,
+    remoteUrl: 'https://pcu-hack.s3.ap-south-1.amazonaws.com/Llama-3.2-1B-Instruct-Q5_K_S.gguf',
+    size: '800 MB',
+    status: 'not-downloaded',
+    isDefault: false,
   },
 ];
 

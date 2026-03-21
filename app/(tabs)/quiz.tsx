@@ -184,9 +184,9 @@ export default function QuizScreen() {
             <Text style={styles.progressText}>{currentQuestionIndex + 1} of {questions.length}</Text>
           </View>
 
-          <TouchableOpacity onPress={toggleTheme} style={styles.headerAction}>
-            <Ionicons name={isDark ? 'sunny' : 'moon'} size={16} color={theme.text} />
-          </TouchableOpacity>
+          <View style={styles.scoreBadge}>
+            <Text style={styles.scoreBadgeLabel}>Score: {score}</Text>
+          </View>
         </View>
 
         <ScrollView contentContainerStyle={styles.quizContent} showsVerticalScrollIndicator={false}>
@@ -458,6 +458,22 @@ const createStyles = (theme: ThemePalette) =>
     progressWrapper: {
       flex: 1,
       paddingHorizontal: 12,
+    },
+    scoreBadge: {
+      minWidth: 92,
+      height: 36,
+      borderRadius: 14,
+      backgroundColor: theme.panelSoft,
+      borderWidth: 1,
+      borderColor: theme.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 10,
+    },
+    scoreBadgeLabel: {
+      color: theme.accent,
+      fontSize: 12,
+      fontWeight: '700',
     },
     progressBarBg: {
       height: 8,
