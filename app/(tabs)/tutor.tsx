@@ -33,7 +33,6 @@ import { ChatBubble } from '@/features/chat';
 import { SpeechToTextService } from '@/features/ai';
 import { OCRService } from '@/features/ai';
 import { getProfile } from '@/features/user';
-import { VisionLanguageService } from '@/features/ai';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { WelcomeSplash } from '@/features/onboarding';
 import { TutorBotIllustration } from '@/features/onboarding';
@@ -60,7 +59,7 @@ interface Message {
   extractedText?: string;
   tokensPerSec?: number;
 }
-type CaptureTask = 'vision' | 'ocr' | 'math';
+type CaptureTask = 'ocr' | 'math';
 
 interface CropBox {
   x: number;
@@ -203,7 +202,7 @@ export default function TutorScreen() {
   };
 
   const handleSend = async (text: string = inputText, imageUri?: string) => {
-    if (!text.trim() && !imageUri) return;
+    if (!text.trim()) return;
 
     const requestedLanguage = detectLanguageRequest(text);
     const normalizedQuestion = requestedLanguage ? requestedLanguage.cleanedQuestion : text;
@@ -230,12 +229,8 @@ export default function TutorScreen() {
         responseText = response.answer;
         if ((response as any).tokensPerSec) tps = (response as any).tokensPerSec;
       } else {
-        if (imageUri) {
-          responseText = await VisionLanguageService.analyzeImage(imageUri, normalizedQuestion || 'Explain this image');
-        } else {
-          const response = await sendQuestion(normalizedQuestion);
-          responseText = response.answer;
-        }
+        const response = await sendQuestion(normalizedQuestion);
+        responseText = response.answer;
       }
 
       if (requestedLanguage) {
@@ -323,30 +318,12 @@ export default function TutorScreen() {
     return result.canceled ? null : result.assets[0].uri;
   };
 
-  const extractTextWithFallback = async (
-    imageUri: string
-  ): Promise<{ text: string; source: 'ocr' | 'vision' }> => {
-    try {
-      const ocrResult = await OCRService.extractTextFromImage(imageUri);
-      if (ocrResult.text && ocrResult.text.trim().length > 0) {
-        return { text: ocrResult.text, source: 'ocr' };
-      }
-    } catch (ocrError) {
-      console.log('Primary OCR failed, trying vision fallback...', ocrError);
+  const extractTextFromOcr = async (imageUri: string): Promise<string> => {
+    const ocrResult = await OCRService.extractTextFromImage(imageUri);
+    if (!ocrResult.text || ocrResult.text.trim().length === 0) {
+      throw new Error('No readable text found from OCR');
     }
-
-    const visionTextRaw = await VisionLanguageService.extractTextFromImage(imageUri);
-    const visionText = OCRService.cleanOCRText(visionTextRaw || '');
-
-    if (
-      !visionText ||
-      visionText.trim().length === 0 ||
-      /failed to extract text|no readable text found/i.test(visionText)
-    ) {
-      throw new Error('No readable text found from OCR or vision fallback');
-    }
-
-    return { text: visionText, source: 'vision' };
+    return ocrResult.text;
   };
 
   const processOcrImage = async (imageUri: string) => {
@@ -358,24 +335,24 @@ export default function TutorScreen() {
         { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
       );
 
-      const extracted = await extractTextWithFallback(manipulated.uri);
-      const validation = OCRService.validateExtractedText(extracted.text);
+      const extractedText = await extractTextFromOcr(manipulated.uri);
+      const validation = OCRService.validateExtractedText(extractedText);
 
       if (validation.isValid) {
         Alert.alert(
-          extracted.source === 'vision' ? 'Text Scanned (Fallback)' : 'Text Scanned',
+          'Text Scanned',
           'What would you like to do with this extracted text?',
           [
             {
               text: 'Insert Text',
               onPress: () => {
-                setInputText((prev) => (prev ? `${prev}\n\n${extracted.text}` : extracted.text));
+                setInputText((prev) => (prev ? `${prev}\n\n${extractedText}` : extractedText));
               },
             },
             {
               text: 'Ask AI Tutor',
               onPress: async () => {
-                await handleSend(`Explain this extracted text:\n\n${extracted.text}`);
+                await handleSend(`Explain this extracted text:\n\n${extractedText}`);
               },
             },
             {
@@ -383,7 +360,7 @@ export default function TutorScreen() {
               onPress: async () => {
                 setLoading(true);
                 try {
-                  const result = await processDocument(extracted.text, 'correct');
+                  const result = await processDocument(extractedText, 'correct');
                   setInputText((prev) => (prev ? `${prev}\n\n${result}` : result));
                 } finally {
                   setLoading(false);
@@ -552,8 +529,8 @@ export default function TutorScreen() {
         { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG }
       );
 
-      const extracted = await extractTextWithFallback(manipulated.uri);
-      const detection = detectMathExpression(extracted.text);
+      const extractedText = await extractTextFromOcr(manipulated.uri);
+      const detection = detectMathExpression(extractedText);
 
       if (!detection) {
         Alert.alert(
@@ -566,14 +543,14 @@ export default function TutorScreen() {
       const solution = solveMathDetection(detection);
       if (!solution) {
         try {
-          const aiResponse = await sendQuestion(`Solve and explain this math problem Step-by-Step: ${extracted.text}`);
+          const aiResponse = await sendQuestion(`Solve and explain this math problem Step-by-Step: ${extractedText}`);
           const userMsg: Message = {
             id: Date.now().toString(),
             text: 'Math problem from image (Algebraic)',
             isUser: true,
             timestamp: new Date(),
             imageUri: manipulated.uri,
-            extractedText: extracted.text,
+            extractedText,
           };
           const aiMsg: Message = {
             id: (Date.now() + 1).toString(),
@@ -596,7 +573,7 @@ export default function TutorScreen() {
         isUser: true,
         timestamp: new Date(),
         imageUri: manipulated.uri,
-        extractedText: extracted.text,
+        extractedText,
       };
 
       const aiMessage: Message = {
@@ -618,31 +595,11 @@ export default function TutorScreen() {
   };
 
   const routeCapturedImage = async (task: CaptureTask, imageUri: string) => {
-    if (task === 'vision') {
-      await handleSend('Please explain what is in this image:', imageUri);
-      return;
-    }
     if (task === 'ocr') {
       await openOcrCropper(imageUri);
       return;
     }
     await processMathImage(imageUri);
-  };
-
-  const handleImagePick = async () => {
-    const source = await askSource('Upload Image', 'Choose a source');
-    if (!source) return;
-    if (source === 'library') {
-      const uri = await pickFromLibrary();
-      if (uri) await routeCapturedImage('vision', uri);
-      return;
-    }
-
-    const opened = await openNativeCamera('vision');
-    if (!opened) {
-      const uri = await captureWithImagePickerCamera();
-      if (uri) await routeCapturedImage('vision', uri);
-    }
   };
 
   const handleScanText = async () => {
@@ -751,11 +708,6 @@ export default function TutorScreen() {
       description: 'Switch to offline mode in settings to use Shiksha AI without internet.',
     },
     {
-      targetId: 'attach-btn',
-      title: 'Snap a Problem',
-      description: 'Upload a photo of your textbook or notebook to get instant explanations.',
-    },
-    {
       targetId: 'scan-btn',
       title: 'Extract Text',
       description: 'Use OCR to convert your handwritten or printed notes into editable text.',
@@ -858,7 +810,7 @@ export default function TutorScreen() {
               </View>
               <Text style={[styles.welcomeTitle, themedStyles.emptyTitle]}>New Session</Text>
               <Text style={[styles.welcomeSubtitle, themedStyles.emptySubtitle]}>
-                Type a message or upload an image to start learning with Shiksha AI.
+                Type a message or scan text to start learning with Shiksha AI.
               </Text>
             </View>
 
@@ -910,13 +862,6 @@ export default function TutorScreen() {
 
         <View style={[styles.inputWrapper, themedStyles.inputWrapper]}>
           <View style={[styles.inputRow, themedStyles.inputRow]}>
-            <TouchableOpacity
-              onPress={handleImagePick}
-              style={styles.plusBtn}
-            >
-              <Ionicons name="add" size={28} color={chatTheme.textMuted} />
-            </TouchableOpacity>
-
             <TouchableOpacity
               onPress={handleScanText}
               style={styles.ocrBtn}

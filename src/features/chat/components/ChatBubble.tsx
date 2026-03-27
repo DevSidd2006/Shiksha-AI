@@ -271,6 +271,19 @@ export function ChatBubble({ text, isUser, timestamp, imageUri, extractedText, p
         .replace(/\s+/g, ' ')
         .trim();
 
+    const formulaToPlainText = (formula: string) =>
+      formula
+        .replace(/\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, '($1/$2)')
+        .replace(/\\sqrt\s*\{([^{}]+)\}/g, 'sqrt($1)')
+        .replace(/\\times/g, '×')
+        .replace(/\\div/g, '÷')
+        .replace(/\\cdot/g, '·')
+        .replace(/\\left|\\right/g, '')
+        .replace(/\\[a-zA-Z]+/g, '')
+        .replace(/[{}]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
     const isSimpleMathText = (formula: string) =>
       /^[A-Za-z0-9+\-*/=().,:_\s]+$/.test(formula);
 
@@ -337,24 +350,8 @@ export function ChatBubble({ text, isUser, timestamp, imageUri, extractedText, p
               if (!cleanFormula) {
                 return null;
               }
-
-              if (isSimpleMathText(cleanFormula) || isLikelyMalformedLatex(cleanFormula)) {
-                return (
-                  <Text key={index} style={styles.mathPlainText}>{cleanFormula}</Text>
-                );
-              }
-
               return (
-                <View key={index} style={styles.mathBlock}>
-                  <FormulaRenderer
-                    formula={cleanFormula}
-                    displayMode={true}
-                    isDark={isDark}
-                    bgColor={katexBgColor}
-                    textColor={katexTextColor}
-                    fallbackTextStyle={styles.mathFallbackText}
-                  />
-                </View>
+                <Text key={index} style={styles.mathPlainText}>{formulaToPlainText(cleanFormula)}</Text>
               );
             }
             // Handle inline mode: $ or \(
@@ -366,24 +363,8 @@ export function ChatBubble({ text, isUser, timestamp, imageUri, extractedText, p
               if (!cleanFormula) {
                 return null;
               }
-
-              if (isSimpleMathText(cleanFormula) || isLikelyMalformedLatex(cleanFormula)) {
-                return (
-                  <Text key={index} style={styles.inlineMathPlainText}>{cleanFormula}</Text>
-                );
-              }
-
               return (
-                <View key={index} style={styles.inlineMathWrapper}>
-                  <FormulaRenderer
-                    formula={cleanFormula}
-                    displayMode={false}
-                    isDark={isDark}
-                    bgColor={katexBgColor}
-                    textColor={katexTextColor}
-                    fallbackTextStyle={styles.inlineMathText}
-                  />
-                </View>
+                <Text key={index} style={styles.inlineMathPlainText}>{formulaToPlainText(cleanFormula)}</Text>
               );
             }
 

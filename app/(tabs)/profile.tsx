@@ -121,7 +121,7 @@ export default function ProfileScreen() {
             </View>
             <View style={styles.profileMeta}>
               <Text style={styles.userName}>{profile?.name || 'Student'}</Text>
-              <Text style={styles.userGrade}>{profile?.grade || 'Class 5-9'}</Text>
+              <Text style={styles.userGrade}>{profile?.grade || 'Class 9'}</Text>
             </View>
           </LinearGradient>
         </View>

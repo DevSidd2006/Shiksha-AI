@@ -15,8 +15,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Fonts, Shadows, BorderRadius, Spacing } from '@/shared';
 import {
     downloadModel,
-    getDefaultModelId,
-    getActiveModelPath,
 } from '@/features/ai';
 import { setOfflineModelPath } from '@/features/ai';
 import { setOfflineMode } from '@/features/user';
@@ -28,7 +26,33 @@ export default function SetupChoiceScreen() {
     const [downloading, setDownloading] = useState(false);
     const [progress, setProgress] = useState(0);
     const [statusText, setStatusText] = useState('');
+    const [selectedModelName, setSelectedModelName] = useState('');
     const fadeAnim = useRef(new Animated.Value(0)).current;
+
+    const modelChoices = [
+        {
+            id: 'qwen-2.5-1.5b-q4',
+            name: 'Qwen 2.5 (1.5B)',
+            variant: 'Q4_K_M',
+            size: '~940 MB',
+            summary: 'Better overall understanding and explanation quality.',
+            color: '#10B981',
+            bg: '#F0FDF4',
+            badge: 'Recommended',
+            icon: 'sparkles-outline' as const,
+        },
+        {
+            id: 'llama-3.2-1b-q5',
+            name: 'Llama 3.2 (1B)',
+            variant: 'Q5_K_S',
+            size: '~800 MB',
+            summary: 'Smaller download and faster response on lower-end devices.',
+            color: '#2563EB',
+            bg: '#EFF6FF',
+            badge: 'Fast',
+            icon: 'flash-outline' as const,
+        },
+    ];
 
     useEffect(() => {
         Animated.timing(fadeAnim, {
@@ -38,20 +62,18 @@ export default function SetupChoiceScreen() {
         }).start();
     }, []);
 
-    const handleRunCloud = async () => {
-        // User chose Cloud option: requires internet, hits Xbook laptop server
-        await setOfflineMode(false); // disable offline mode
+    const handleRunOnline = async () => {
+        await setOfflineMode(false);
         router.replace('/(tabs)/dashboard');
     };
 
-    const handleRunOffline = async () => {
-        // User chose Download option: saves to phone to run standalone
+    const handleDownloadModel = async (modelId: string, modelName: string, modelSize: string) => {
         setDownloading(true);
+        setSelectedModelName(modelName);
         setStatusText('Preparing storage...');
 
         try {
             await initializeDatabase();
-            const modelId = getDefaultModelId();
 
             setStatusText('Connecting to cloud...');
             const modelPath = await downloadModel(modelId, (p: number) => {
@@ -81,6 +103,7 @@ export default function SetupChoiceScreen() {
             console.error('Download failed:', err);
             setDownloading(false);
             setProgress(0);
+            setSelectedModelName('');
             Alert.alert(
                 'Download Failed',
                 'Could not download the model. Please check your internet connection or use the Cloud option instead.'
@@ -95,7 +118,7 @@ export default function SetupChoiceScreen() {
                     <View style={styles.logoBg}>
                         <MaterialIcons name="cloud-download" size={64} color="#4F46E5" />
                     </View>
-                    <Text style={styles.downloadTitle}>Downloading AI Brain</Text>
+                    <Text style={styles.downloadTitle}>Downloading {selectedModelName || 'AI Brain'}</Text>
                     <Text style={styles.downloadSubtitle}>
                         Saving to your phone for 100% offline use.
                     </Text>
@@ -106,7 +129,7 @@ export default function SetupChoiceScreen() {
                         </View>
                         <Text style={styles.progressText}>{statusText}</Text>
                         {progress > 0 && progress < 1 && (
-                            <Text style={styles.sizeHint}>~940 MB</Text>
+                            <Text style={styles.sizeHint}>Keep this screen open until completion</Text>
                         )}
                     </View>
 
@@ -132,50 +155,56 @@ export default function SetupChoiceScreen() {
                         </View>
                         <Text style={styles.title}>Choose Your AI Engine</Text>
                         <Text style={styles.subtitle}>
-                            Pick cloud mode or download one of the local models to run fully offline.
+                            Run online instantly or download one model for offline use.
                         </Text>
                     </View>
 
-                    {/* Option 1: Cloud Server */}
                     <TouchableOpacity
                         style={[styles.optionCard, { borderColor: '#3B82F6', borderWidth: 2 }]}
-                        onPress={handleRunCloud}
+                        onPress={handleRunOnline}
                         activeOpacity={0.8}
                     >
-                        <View style={[styles.optionIcon, { backgroundColor: '#EFF6FF' }]}>
+                        <View style={[styles.optionIcon, { backgroundColor: '#EFF6FF' }]}> 
                             <Ionicons name="cloud-outline" size={32} color="#3B82F6" />
                         </View>
                         <View style={styles.optionContent}>
-                            <Text style={styles.optionTitle}>Run on Cloud (Xbook)</Text>
+                            <View style={styles.titleRow}>
+                                <Text style={[styles.optionTitle, { color: '#1D4ED8' }]}>Run Online</Text>
+                                <View style={[styles.offlineTag, { backgroundColor: '#EFF6FF' }]}> 
+                                    <Text style={[styles.offlineTagText, { color: '#1D4ED8' }]}>CLOUD</Text>
+                                </View>
+                            </View>
                             <Text style={styles.optionDesc}>
-                                Uses internet to connect to your local server. Fastest setup, requires constant Wi-Fi.
+                                Start immediately using internet. No model download required.
                             </Text>
                         </View>
                         <MaterialIcons name="chevron-right" size={24} color="#3B82F6" />
                     </TouchableOpacity>
 
-                    {/* Option 2: Full Offline Download */}
-                    <TouchableOpacity
-                        style={[styles.optionCard, { borderColor: '#10B981', borderWidth: 2 }]}
-                        onPress={handleRunOffline}
-                        activeOpacity={0.8}
-                    >
-                        <View style={[styles.optionIcon, { backgroundColor: '#F0FDF4' }]}>
-                            <Ionicons name="phone-portrait-outline" size={32} color="#10B981" />
-                        </View>
-                        <View style={styles.optionContent}>
-                            <View style={styles.titleRow}>
-                                <Text style={[styles.optionTitle, { color: '#059669' }]}>Download to Phone</Text>
-                                <View style={styles.offlineTag}>
-                                    <Text style={styles.offlineTagText}>OFFLINE</Text>
-                                </View>
+                    {modelChoices.map((model) => (
+                        <TouchableOpacity
+                            key={model.id}
+                            style={[styles.optionCard, { borderColor: model.color, borderWidth: 2 }]}
+                            onPress={() => handleDownloadModel(model.id, model.name, model.size)}
+                            activeOpacity={0.8}
+                        >
+                            <View style={[styles.optionIcon, { backgroundColor: model.bg }]}> 
+                                <Ionicons name={model.icon} size={32} color={model.color} />
                             </View>
-                            <Text style={styles.optionDesc}>
-                                Downloads models from S3 to your phone. Available: Qwen 2.5 (1.5B, Q4_K_M, ~940MB) and Llama 3.2 (1B, Q5_K_S, ~800MB).
-                            </Text>
-                        </View>
-                        <MaterialIcons name="download" size={24} color="#10B981" />
-                    </TouchableOpacity>
+                            <View style={styles.optionContent}>
+                                <View style={styles.titleRow}>
+                                    <Text style={[styles.optionTitle, { color: model.color }]}>{model.name}</Text>
+                                    <View style={[styles.offlineTag, { backgroundColor: model.bg }]}>
+                                        <Text style={[styles.offlineTagText, { color: model.color }]}>{model.badge}</Text>
+                                    </View>
+                                </View>
+                                <Text style={styles.optionDesc}>
+                                    {model.summary} {model.variant} • {model.size}
+                                </Text>
+                            </View>
+                            <MaterialIcons name="download" size={24} color={model.color} />
+                        </TouchableOpacity>
+                    ))}
 
                 </Animated.View>
             </SafeAreaView>
@@ -275,7 +304,7 @@ const styles = StyleSheet.create({
         marginBottom: 4,
     },
     offlineTagText: {
-        fontSize: 10,
+        backgroundColor: '#10B981',
         fontFamily: Fonts.bold,
         color: '#FFF',
     },

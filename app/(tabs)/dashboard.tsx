@@ -133,6 +133,11 @@ export default function DashboardScreen() {
   const grade = profile?.grade || 'Class 8';
   const mastery = Math.max(0, Math.min(100, stats?.accuracy || 75));
   const completedTopics = stats?.topics?.length || 0;
+  const dailyGoal = stats?.dailyGoal || 5;
+  const todayQuestions = stats?.todayQuestions || 0;
+  const dailyProgress = Math.max(0, Math.min(100, Math.round((todayQuestions / dailyGoal) * 100)));
+  const streak = stats?.currentStreak || 0;
+  const points = stats?.totalPoints || 0;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -173,17 +178,8 @@ export default function DashboardScreen() {
           <LinearGradient colors={theme.cardGradient as any} style={styles.welcomeCard}>
             <Text style={styles.welcomeTitle}>Welcome back, {userName}! 👋</Text>
             <Text style={styles.welcomeSubtext}>
-              You've mastered {completedTopics} topics this week. Keep up the momentum!
+              Learn smarter today. You have {completedTopics} mastered topics and a fresh mission waiting.
             </Text>
-
-            <View style={styles.masteryRow}>
-              <View style={styles.masteryAvatars}>
-                <View style={styles.avatarDot} />
-                <View style={[styles.avatarDot, styles.avatarOverlap]} />
-                <View style={[styles.avatarDot, styles.avatarOverlap]} />
-              </View>
-              <Text style={styles.masteryLabel}>Your personal learning journey today</Text>
-            </View>
 
             <View style={styles.goalWrap}>
               <View style={styles.goalRingOuter}>
@@ -193,13 +189,41 @@ export default function DashboardScreen() {
                 </View>
               </View>
             </View>
-          </LinearGradient>
 
-          <TouchableOpacity style={styles.tipCard} onPress={() => router.push('/progress')}>
-            <Text style={styles.tipTitle}>✨ AI Tutor Tip</Text>
-            <Text style={styles.tipAction}>View performance trends →</Text>
-          </TouchableOpacity>
+            <View style={styles.heroStatRow}>
+              <View style={styles.heroStatChip}>
+                <Ionicons name="flame-outline" size={13} color={theme.accent} />
+                <Text style={styles.heroStatText}>{streak} day streak</Text>
+              </View>
+              <View style={styles.heroStatChip}>
+                <Ionicons name="sparkles-outline" size={13} color={theme.accent} />
+                <Text style={styles.heroStatText}>{points} points</Text>
+              </View>
+            </View>
+          </LinearGradient>
         </LinearGradient>
+
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Today's Mission</Text>
+        </View>
+
+        <View style={styles.missionCard}>
+          <View style={styles.missionHeader}>
+            <MaterialIcons name="rocket-launch" size={16} color={theme.accent} />
+            <Text style={styles.missionTitle}>Complete your daily target</Text>
+          </View>
+          <Text style={styles.missionSubtitle}>
+            Solve at least {dailyGoal} questions to maintain your learning streak.
+          </Text>
+          <View style={styles.pathProgressTrack}>
+            <View style={[styles.pathProgressFill, { width: `${dailyProgress}%` }]} />
+          </View>
+          <View style={styles.missionSteps}>
+            <Text style={styles.missionStep}>1. Read Chapter 1 summary</Text>
+            <Text style={styles.missionStep}>2. Ask AI 2 doubts</Text>
+            <Text style={styles.missionStep}>3. Finish one quiz set</Text>
+          </View>
+        </View>
 
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Active Learning Path</Text>
@@ -212,8 +236,8 @@ export default function DashboardScreen() {
           <View style={styles.pathMetaRow}>
             <Text style={styles.inProgressBadge}>IN PROGRESS</Text>
           </View>
-          <Text style={styles.pathTitle}>{grade} Science: {activeChapter?.title || 'Cell Biology'}</Text>
-          <Text style={styles.pathDescription}>Module 4: Powerhouse of the Cell (Mitochondria)</Text>
+          <Text style={styles.pathTitle}>{grade} Science: {activeChapter?.title || 'Matter in Our Surroundings'}</Text>
+          <Text style={styles.pathDescription}>Start with structured roadmap in Notes, then practice using Flashcards and Quiz.</Text>
           <View style={styles.pathProgressTrack}>
             <View style={[styles.pathProgressFill, { width: `${mastery}%` }]} />
           </View>
@@ -258,79 +282,6 @@ export default function DashboardScreen() {
             <Text style={styles.toolSubtitle}>Get a specific question answered instantly.</Text>
           </TouchableOpacity>
         </View>
-
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Upcoming Goals</Text>
-        </View>
-
-        <View style={styles.goalList}>
-          <View style={styles.goalItem}>
-            <View style={[styles.goalIcon, { backgroundColor: '#FEE2E2' }]}>
-              <Ionicons name="calendar-outline" size={14} color="#B91C1C" />
-            </View>
-            <View style={styles.goalTextWrap}>
-              <Text style={styles.goalItemTitle}>Cell structure quiz</Text>
-              <Text style={styles.goalItemMeta}>Due tomorrow, 4 PM</Text>
-            </View>
-          </View>
-
-          <View style={styles.goalItem}>
-            <View style={[styles.goalIcon, { backgroundColor: '#CCFBF1' }]}>
-              <Ionicons name="flask-outline" size={14} color="#0F766E" />
-            </View>
-            <View style={styles.goalTextWrap}>
-              <Text style={styles.goalItemTitle}>Lab report: Osmosis</Text>
-              <Text style={styles.goalItemMeta}>Due Friday, 11 AM</Text>
-            </View>
-          </View>
-
-          <View style={styles.goalItem}>
-            <View style={[styles.goalIcon, { backgroundColor: '#E0E7FF' }]}>
-              <Ionicons name="flash-outline" size={14} color="#1D4ED8" />
-            </View>
-            <View style={styles.goalTextWrap}>
-              <Text style={styles.goalItemTitle}>Daily study streak</Text>
-              <Text style={styles.goalItemMeta}>Target: 45 minutes</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Recent Resources</Text>
-          <TouchableOpacity onPress={() => router.push('/flashcards')}>
-            <Text style={styles.sectionAction}>View All</Text>
-          </TouchableOpacity>
-        </View>
-
-        <LinearGradient colors={theme.cardGradient as any} style={styles.resourcesCard}>
-          <View style={styles.resourceItem}>
-            <Ionicons name="document-text" size={14} color={theme.accent} />
-            <View style={styles.resourceTextWrap}>
-              <Text style={styles.resourceTitle}>Introduction to Mitosis.pdf</Text>
-              <Text style={styles.resourceMeta}>Accessed 2 hours ago</Text>
-            </View>
-          </View>
-
-          <View style={styles.resourceItem}>
-            <Ionicons name="list" size={14} color={theme.accent} />
-            <View style={styles.resourceTextWrap}>
-              <Text style={styles.resourceTitle}>AI Summary: Plant Cells</Text>
-              <Text style={styles.resourceMeta}>Accessed 5 hours ago</Text>
-            </View>
-          </View>
-
-          <View style={styles.resourceItem}>
-            <Ionicons name="book" size={14} color={theme.accent} />
-            <View style={styles.resourceTextWrap}>
-              <Text style={styles.resourceTitle}>Video: Cytoplasm Explained</Text>
-              <Text style={styles.resourceMeta}>Accessed yesterday</Text>
-            </View>
-          </View>
-
-          <TouchableOpacity style={styles.libraryButton} onPress={() => router.push('/flashcards')}>
-            <Text style={styles.libraryButtonText}>View All Library</Text>
-          </TouchableOpacity>
-        </LinearGradient>
 
         <View style={styles.footerStats}>
           <View style={styles.footerStatBox}>
@@ -498,32 +449,32 @@ const createStyles = (theme: ThemePalette) =>
       fontWeight: '700',
       letterSpacing: 1,
     },
-    tipCard: {
-      marginTop: 10,
+    heroStatRow: {
+      marginTop: 12,
+      flexDirection: 'row',
+      gap: 8,
+      justifyContent: 'center',
+    },
+    heroStatChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
       backgroundColor: theme.panel,
-      borderWidth: 1,
       borderColor: theme.border,
-      borderRadius: 16,
-      paddingVertical: 12,
-      paddingHorizontal: 14,
-      borderLeftWidth: 3,
-      borderLeftColor: '#C57A1C',
+      borderWidth: 1,
+      borderRadius: 999,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
     },
-    tipTitle: {
+    heroStatText: {
       color: theme.text,
-      fontSize: 14,
-      fontWeight: '700',
-    },
-    tipAction: {
-      marginTop: 8,
-      color: theme.accent,
       fontSize: 12,
       fontWeight: '700',
     },
     sectionHeader: {
-      marginTop: 18,
+      marginTop: 14,
       paddingHorizontal: 16,
-      marginBottom: 10,
+      marginBottom: 8,
     },
     sectionHeaderRow: {
       marginTop: 18,
@@ -535,7 +486,7 @@ const createStyles = (theme: ThemePalette) =>
     },
     sectionTitle: {
       color: theme.text,
-      fontSize: 22,
+      fontSize: 18,
       fontWeight: '800',
       letterSpacing: -0.3,
     },
@@ -543,6 +494,40 @@ const createStyles = (theme: ThemePalette) =>
       color: theme.accent,
       fontSize: 13,
       fontWeight: '700',
+    },
+    missionCard: {
+      marginHorizontal: 16,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.panel,
+      padding: 12,
+    },
+    missionHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    missionTitle: {
+      color: theme.text,
+      fontSize: 15,
+      fontWeight: '800',
+    },
+    missionSubtitle: {
+      marginTop: 6,
+      color: theme.textMuted,
+      fontSize: 12,
+      lineHeight: 18,
+      fontWeight: '500',
+    },
+    missionSteps: {
+      marginTop: 10,
+      gap: 4,
+    },
+    missionStep: {
+      color: theme.text,
+      fontSize: 12,
+      fontWeight: '600',
     },
     pathCard: {
       marginHorizontal: 16,
@@ -597,7 +582,7 @@ const createStyles = (theme: ThemePalette) =>
       overflow: 'hidden',
     },
     pathProgressFill: {
-      height: '100%',
+      height: '70%',
       backgroundColor: theme.accent,
       borderRadius: 999,
     },
@@ -639,7 +624,7 @@ const createStyles = (theme: ThemePalette) =>
     },
     toolsGrid: {
       paddingHorizontal: 16,
-      gap: 10,
+      gap: 8,
     },
     toolCard: {
       backgroundColor: theme.panel,
@@ -669,85 +654,8 @@ const createStyles = (theme: ThemePalette) =>
       fontWeight: '500',
       lineHeight: 17,
     },
-    goalList: {
-      paddingHorizontal: 16,
-      gap: 8,
-    },
-    goalItem: {
-      backgroundColor: theme.panel,
-      borderWidth: 1,
-      borderColor: theme.border,
-      borderRadius: 12,
-      padding: 10,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-    },
-    goalIcon: {
-      width: 26,
-      height: 26,
-      borderRadius: 13,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    goalTextWrap: {
-      flex: 1,
-    },
-    goalItemTitle: {
-      color: theme.text,
-      fontSize: 14,
-      fontWeight: '700',
-    },
-    goalItemMeta: {
-      marginTop: 1,
-      color: theme.textMuted,
-      fontSize: 11,
-      fontWeight: '500',
-    },
-    resourcesCard: {
-      marginHorizontal: 16,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: theme.border,
-      padding: 12,
-      gap: 8,
-    },
-    resourceItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-    },
-    resourceTextWrap: {
-      flex: 1,
-    },
-    resourceTitle: {
-      color: theme.text,
-      fontSize: 14,
-      fontWeight: '700',
-    },
-    resourceMeta: {
-      marginTop: 1,
-      color: theme.textMuted,
-      fontSize: 11,
-      fontWeight: '500',
-    },
-    libraryButton: {
-      marginTop: 8,
-      borderWidth: 1,
-      borderStyle: 'dashed',
-      borderColor: theme.border,
-      borderRadius: 12,
-      height: 36,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    libraryButtonText: {
-      color: theme.text,
-      fontSize: 12,
-      fontWeight: '700',
-    },
     footerStats: {
-      marginTop: 16,
+      marginTop: 14,
       marginHorizontal: 16,
       flexDirection: 'row',
       backgroundColor: theme.panel,

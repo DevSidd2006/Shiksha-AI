@@ -8,8 +8,6 @@ export {
   type MathSolution,
 } from './services/mathSolver';
 export { OCRService, type OCRResult } from './services/ocrService';
-export { VisionLanguageService, type VisionResult as VisionLanguageResult } from './services/visionLanguageService';
-export { VisionService, type VisionResult as VisionAnalysisResult } from './services/visionService';
 export {
   detectLanguageRequest,
   translateAssistantResponse,

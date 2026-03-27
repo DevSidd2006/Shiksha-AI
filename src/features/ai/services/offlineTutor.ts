@@ -29,8 +29,12 @@ async function tryNativeLlama(question: string): Promise<TutorResponse | null> {
   try {
     const prompt = [
       'You are a concise AI Tutor for Class 9 students.',
-      'Explain concepts in a short, complete, and highly useful manner.',
-      'Avoid long paragraphs. Be direct and accurate for a 9th grade level.',
+      'Explain in simple language with short sentences.',
+      'Use normal text math like 40/20 = 2, not LaTeX.',
+      'Always follow this format:',
+      'Simple Answer: 1-2 short lines',
+      'Steps: 2-5 short points',
+      'Final Answer: one line',
       `Question: ${question}`,
     ].join('\n');
 

@@ -6,7 +6,7 @@ export interface OCRResult {
   text: string;
   confidence: number;
   language: string;
-  provider: 'backend-tesseract' | 'vision-api';
+  provider: 'backend-tesseract';
 }
 
 // Get preferred configured backend URL

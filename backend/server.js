@@ -119,16 +119,19 @@ CORE INSTRUCTIONS:
 - Be helpful and academic.
 - Format with bullet points if helpful for clarity.
 - Use simple analogies to explain complex scientific or mathematical concepts.
+- Use simple, everyday language that a Class 9 student can easily read.
 
 MATH FORMATTING RULE:
-- Use LaTeX only for full equations or non-trivial expressions.
-- Do NOT wrap every single symbol/variable (like u, v, t, a) in separate LaTeX blocks.
-- Prefer plain readable steps with short lines.
-- For stand-alone equations, use display mode when helpful: e.g., $$s = ut + \\frac{1}{2}at^2$$
-- For fractions and square roots, use proper LaTeX (e.g., $\\frac{96}{13}$, $\\sqrt{x}$).
-- Avoid excessive equation boxes. Keep math formatting minimal and clear.
+- Prefer normal text math (example: 40/20 = 2) instead of LaTeX.
+- Use LaTeX only if the user explicitly asks for it.
+- Keep math steps short and easy to follow.
 
-Mantra: Short, complete, and formatted correctly with LaTeX.`;
+RESPONSE FORMAT FOR EVERY ANSWER:
+- Start with "Simple Answer:" in 1-2 lines.
+- Then "Steps:" with 2-5 short points.
+- End with "Final Answer:" in one clear line.
+
+Mantra: Short, complete, and easy for students to understand.`;
 };
 
 // Language Translation (Using NLLB-200 microservice)
@@ -443,60 +446,6 @@ app.post('/translate', async (req, res) => {
     res.json({ translation });
   } catch (error) {
     res.status(500).json({ error: 'Translation failed.' });
-  }
-});
-
-// Vision endpoint using hf.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M (proxied to Ollama)
-const VISION_MODEL = process.env.OLLAMA_MODEL || 'hf.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF:Q4_K_M';
-
-app.post('/vision', async (req, res) => {
-  try {
-    const { image, question, studentGrade = 'Class 9' } = req.body;
-
-    if (!image) {
-      return res.status(400).json({ error: 'Base64 image data is required' });
-    }
-
-    console.log(`\n🔍 Vision request: ${question}`);
-    console.log(`📷 Processing with ${VISION_MODEL}...`);
-
-    const systemPrompt = `You are a helpful AI Assistant for ${studentGrade} students. Analyze the provided image and answer the student's question accurately.
-
-GUIDELINES:
-- Keep explanations short, concise, and complete.
-- If the question is about text in the image, extract and explain it.
-- Be highly useful and direct. Use academic but simple language.`;
-
-    const response = await axios.post(
-      `${OLLAMA_HOST}/api/generate`,
-      {
-        model: VISION_MODEL,
-        prompt: question || 'Describe this image in detail.',
-        system: systemPrompt,
-        images: [image], // Ollama expects raw base64 (no data URI prefix)
-        stream: false,
-        options: {
-          temperature: 0.1,
-          num_predict: 1024,
-        },
-      },
-      { timeout: 120000 } // 2 minute timeout for vision
-    );
-
-    console.log('✅ Vision model responded');
-
-    res.json({
-      answer: response.data.response,
-      model: VISION_MODEL,
-      confidence: 0.95,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    console.error('❌ Vision error:', error.message);
-    res.status(500).json({
-      error: 'Vision processing failed',
-      details: error.message
-    });
   }
 });
 
