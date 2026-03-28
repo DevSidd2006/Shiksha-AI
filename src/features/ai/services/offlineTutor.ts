@@ -29,14 +29,18 @@ async function tryNativeLlama(question: string): Promise<TutorResponse | null> {
   try {
     const prompt = [
       'You are a concise AI Tutor for Class 9 students.',
-      'Explain concepts in a short, complete, and highly useful manner.',
-      'Avoid long paragraphs. Be direct and accurate for a 9th grade level.',
+      'Explain in simple language with short sentences.',
+      'Use normal text math like 40/20 = 2, not LaTeX.',
+      'Always follow this format:',
+      'Simple Answer: 1-2 short lines',
+      'Steps: 2-5 short points',
+      'Final Answer: one line',
       `Question: ${question}`,
     ].join('\n');
 
     const result = await llamaBridge.generate(prompt, {
       modelPath: configuredModelPath,
-      maxTokens: 120,
+      maxTokens: 320,
       temperature: 0.7,
     });
 
@@ -52,7 +56,7 @@ async function tryNativeLlama(question: string): Promise<TutorResponse | null> {
 
 export async function generateOfflineAnswer(question: string): Promise<TutorResponse> {
   const trimmed = question.trim();
-  const limitedQuestion = trimmed.slice(0, 240);
+  const limitedQuestion = trimmed.slice(0, 1000);
 
   const native = await tryNativeLlama(limitedQuestion);
   if (native) return native;

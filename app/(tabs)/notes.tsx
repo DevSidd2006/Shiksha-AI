@@ -41,6 +41,12 @@ interface NotePoint {
 interface ChapterData {
   chapterTitle: string;
   introduction: string;
+  studyRoadmap?: {
+    stage: string;
+    focus: string;
+    actions: string[];
+    checkpoint: string;
+  }[];
   points: NotePoint[];
 }
 
@@ -193,6 +199,39 @@ export default function NotesScreen() {
           </View>
           <Text style={styles.introText}>{chapterData.introduction}</Text>
         </LinearGradient>
+
+        {chapterData.studyRoadmap && chapterData.studyRoadmap.length > 0 && (
+          <View style={styles.roadmapContainer}>
+            <Text style={styles.sectionTitleSmall}>Structured Learning Path</Text>
+            {chapterData.studyRoadmap.map((step, idx) => (
+              <View key={`${step.stage}-${idx}`} style={styles.roadmapCard}>
+                <View style={styles.roadmapHeader}>
+                  <View style={styles.roadmapStepBadge}>
+                    <Text style={styles.roadmapStepBadgeText}>{idx + 1}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.roadmapStage}>{step.stage}</Text>
+                    <Text style={styles.roadmapFocus}>{step.focus}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.roadmapActionsList}>
+                  {step.actions.map((action, actionIdx) => (
+                    <View key={`${step.stage}-action-${actionIdx}`} style={styles.roadmapActionRow}>
+                      <Text style={styles.roadmapActionBullet}>•</Text>
+                      <Text style={styles.roadmapActionText}>{action}</Text>
+                    </View>
+                  ))}
+                </View>
+
+                <View style={styles.checkpointBox}>
+                  <Text style={styles.checkpointTitle}>Checkpoint</Text>
+                  <Text style={styles.checkpointText}>{step.checkpoint}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
 
         <View style={styles.categoryContainer}>
           <Text style={styles.sectionTitleSmall}>Categories</Text>
@@ -409,6 +448,90 @@ const createStyles = (theme: ThemePalette) =>
       fontSize: 13,
       color: theme.textMuted,
       lineHeight: 20,
+      fontWeight: '500',
+    },
+    roadmapContainer: {
+      paddingHorizontal: 16,
+      marginBottom: 14,
+      gap: 10,
+    },
+    roadmapCard: {
+      backgroundColor: theme.panel,
+      borderRadius: 14,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+      gap: 10,
+    },
+    roadmapHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    roadmapStepBadge: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: theme.chipBg,
+    },
+    roadmapStepBadgeText: {
+      color: theme.accent,
+      fontSize: 13,
+      fontWeight: '800',
+    },
+    roadmapStage: {
+      color: theme.text,
+      fontSize: 14,
+      fontWeight: '800',
+      marginBottom: 2,
+    },
+    roadmapFocus: {
+      color: theme.textMuted,
+      fontSize: 12,
+      lineHeight: 18,
+      fontWeight: '500',
+    },
+    roadmapActionsList: {
+      gap: 6,
+    },
+    roadmapActionRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 6,
+    },
+    roadmapActionBullet: {
+      color: theme.accent,
+      fontSize: 14,
+      marginTop: 1,
+    },
+    roadmapActionText: {
+      flex: 1,
+      color: theme.text,
+      fontSize: 13,
+      lineHeight: 19,
+      fontWeight: '500',
+    },
+    checkpointBox: {
+      backgroundColor: theme.panelSoft,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: theme.border,
+      padding: 10,
+      gap: 4,
+    },
+    checkpointTitle: {
+      color: theme.accent,
+      fontSize: 11,
+      fontWeight: '800',
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    checkpointText: {
+      color: theme.text,
+      fontSize: 12,
+      lineHeight: 18,
       fontWeight: '500',
     },
     categoryContainer: {

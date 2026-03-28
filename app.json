@@ -26,11 +26,7 @@
       "permissions": [
         "CAMERA",
         "RECORD_AUDIO"
-      ],
-      "navigationBar": {
-        "visible": "hidden",
-        "behavior": "sticky-immersive"
-      }
+      ]
     },
     "plugins": [
       "expo-dev-client",
@@ -41,7 +37,9 @@
           "enableOpenCL": true
         }
       ],
-      "./scripts/withLargeHeap.js"
+      "./scripts/withLargeHeap.js",
+      "expo-font",
+      "expo-router"
     ],
     "scheme": "shikshaai",
     "extra": {

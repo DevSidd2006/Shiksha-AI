@@ -11,6 +11,12 @@ export interface ChapterNotes {
   chapterId: number;
   chapterTitle: string;
   introduction: string;
+  studyRoadmap?: {
+    stage: string;
+    focus: string;
+    actions: string[];
+    checkpoint: string;
+  }[];
   points: ImportantPoint[];
 }
 
@@ -19,6 +25,38 @@ export const CLASS_9_SCIENCE_NOTES: ChapterNotes[] = [
     chapterId: 1,
     chapterTitle: 'Matter in Our Surroundings',
     introduction: 'Understanding states of matter, properties, and changes',
+    studyRoadmap: [
+      {
+        stage: 'Step 1 - Foundation',
+        focus: 'Understand what matter is and how particles behave.',
+        actions: [
+          'Read: What is Matter, Characteristics of Matter, and Particle Theory.',
+          'Write 5 daily-life examples of solids, liquids, and gases.',
+          'Explain diffusion in one line using perfume or ink example.',
+        ],
+        checkpoint: 'You should be able to define matter and list 3 particle properties without notes.',
+      },
+      {
+        stage: 'Step 2 - States and Changes',
+        focus: 'Master solid, liquid, gas and change of state.',
+        actions: [
+          'Create a 3-column table: shape, volume, compressibility for each state.',
+          'Learn melting, boiling, condensation, sublimation with one example each.',
+          'Practice temperature conversion: K = C + 273.',
+        ],
+        checkpoint: 'You should explain why gases are compressible and ice melts at 0 C.',
+      },
+      {
+        stage: 'Step 3 - Evaporation and Applications',
+        focus: 'Link chapter concepts to real life and exam answers.',
+        actions: [
+          'Memorize factors affecting evaporation: surface area, temperature, humidity, wind speed.',
+          'Write short answers: Why sweating cools body? Why earthen pot cools water?',
+          'Solve 5 flashcards from Chapter 1 and self-check weak areas.',
+        ],
+        checkpoint: 'You should be able to answer most Chapter 1 short questions in 3-5 lines.',
+      },
+    ],
     points: [
       {
         id: '1-1',

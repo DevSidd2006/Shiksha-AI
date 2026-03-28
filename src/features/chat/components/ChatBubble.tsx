@@ -1,5 +1,5 @@
-import React, { useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Share, ActivityIndicator } from 'react-native';
+import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Share, ActivityIndicator, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { SpeechToTextService } from '@/features/ai';
@@ -188,6 +188,25 @@ export function ChatBubble({ text, isUser, timestamp, imageUri, extractedText, p
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
 
+  const scaleValue = useRef(new Animated.Value(0.85)).current;
+  const opacityValue = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacityValue, {
+        toValue: 1,
+        duration: 350,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleValue, {
+        toValue: 1,
+        friction: 6,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
   const formatTime = (date: any) => {
     if (!date) return '';
     const d = date instanceof Date ? date : new Date(date);
@@ -271,6 +290,19 @@ export function ChatBubble({ text, isUser, timestamp, imageUri, extractedText, p
         .replace(/\s+/g, ' ')
         .trim();
 
+    const formulaToPlainText = (formula: string) =>
+      formula
+        .replace(/\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, '($1/$2)')
+        .replace(/\\sqrt\s*\{([^{}]+)\}/g, 'sqrt($1)')
+        .replace(/\\times/g, '×')
+        .replace(/\\div/g, '÷')
+        .replace(/\\cdot/g, '·')
+        .replace(/\\left|\\right/g, '')
+        .replace(/\\[a-zA-Z]+/g, '')
+        .replace(/[{}]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
     const isSimpleMathText = (formula: string) =>
       /^[A-Za-z0-9+\-*/=().,:_\s]+$/.test(formula);
 
@@ -337,24 +369,8 @@ export function ChatBubble({ text, isUser, timestamp, imageUri, extractedText, p
               if (!cleanFormula) {
                 return null;
               }
-
-              if (isSimpleMathText(cleanFormula) || isLikelyMalformedLatex(cleanFormula)) {
-                return (
-                  <Text key={index} style={styles.mathPlainText}>{cleanFormula}</Text>
-                );
-              }
-
               return (
-                <View key={index} style={styles.mathBlock}>
-                  <FormulaRenderer
-                    formula={cleanFormula}
-                    displayMode={true}
-                    isDark={isDark}
-                    bgColor={katexBgColor}
-                    textColor={katexTextColor}
-                    fallbackTextStyle={styles.mathFallbackText}
-                  />
-                </View>
+                <Text key={index} style={styles.mathPlainText}>{formulaToPlainText(cleanFormula)}</Text>
               );
             }
             // Handle inline mode: $ or \(
@@ -366,24 +382,8 @@ export function ChatBubble({ text, isUser, timestamp, imageUri, extractedText, p
               if (!cleanFormula) {
                 return null;
               }
-
-              if (isSimpleMathText(cleanFormula) || isLikelyMalformedLatex(cleanFormula)) {
-                return (
-                  <Text key={index} style={styles.inlineMathPlainText}>{cleanFormula}</Text>
-                );
-              }
-
               return (
-                <View key={index} style={styles.inlineMathWrapper}>
-                  <FormulaRenderer
-                    formula={cleanFormula}
-                    displayMode={false}
-                    isDark={isDark}
-                    bgColor={katexBgColor}
-                    textColor={katexTextColor}
-                    fallbackTextStyle={styles.inlineMathText}
-                  />
-                </View>
+                <Text key={index} style={styles.inlineMathPlainText}>{formulaToPlainText(cleanFormula)}</Text>
               );
             }
 
@@ -478,7 +478,7 @@ export function ChatBubble({ text, isUser, timestamp, imageUri, extractedText, p
   );
 
   return (
-    <View style={[styles.container, isUser ? styles.userContainer : styles.tutorContainer]}>
+    <Animated.View style={[styles.container, isUser ? styles.userContainer : styles.tutorContainer, { opacity: opacityValue, transform: [{ scale: scaleValue }] }]}>
       <View style={[isUser ? styles.userBubble : styles.tutorBubble]}>
         {renderBubbleContent()}
       </View>
@@ -488,7 +488,7 @@ export function ChatBubble({ text, isUser, timestamp, imageUri, extractedText, p
           <Text style={styles.extractedTextTag}>Text extracted from image</Text>
         </View>
       )}
-    </View>
+    </Animated.View>
   );
 }
 
