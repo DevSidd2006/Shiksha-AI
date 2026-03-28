@@ -304,7 +304,6 @@ const styles = StyleSheet.create({
         marginBottom: 4,
     },
     offlineTagText: {
-        backgroundColor: '#10B981',
         fontFamily: Fonts.bold,
         color: '#FFF',
     },

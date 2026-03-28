@@ -40,7 +40,7 @@ async function tryNativeLlama(question: string): Promise<TutorResponse | null> {
 
     const result = await llamaBridge.generate(prompt, {
       modelPath: configuredModelPath,
-      maxTokens: 120,
+      maxTokens: 320,
       temperature: 0.7,
     });
 
@@ -56,7 +56,7 @@ async function tryNativeLlama(question: string): Promise<TutorResponse | null> {
 
 export async function generateOfflineAnswer(question: string): Promise<TutorResponse> {
   const trimmed = question.trim();
-  const limitedQuestion = trimmed.slice(0, 240);
+  const limitedQuestion = trimmed.slice(0, 1000);
 
   const native = await tryNativeLlama(limitedQuestion);
   if (native) return native;

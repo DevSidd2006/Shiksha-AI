@@ -1,5 +1,5 @@
-import React, { useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Share, ActivityIndicator } from 'react-native';
+import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Share, ActivityIndicator, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
 import { SpeechToTextService } from '@/features/ai';
@@ -187,6 +187,25 @@ export function ChatBubble({ text, isUser, timestamp, imageUri, extractedText, p
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [translatedText, setTranslatedText] = useState<string | null>(null);
   const [isTranslating, setIsTranslating] = useState(false);
+
+  const scaleValue = useRef(new Animated.Value(0.85)).current;
+  const opacityValue = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(opacityValue, {
+        toValue: 1,
+        duration: 350,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleValue, {
+        toValue: 1,
+        friction: 6,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   const formatTime = (date: any) => {
     if (!date) return '';
@@ -459,7 +478,7 @@ export function ChatBubble({ text, isUser, timestamp, imageUri, extractedText, p
   );
 
   return (
-    <View style={[styles.container, isUser ? styles.userContainer : styles.tutorContainer]}>
+    <Animated.View style={[styles.container, isUser ? styles.userContainer : styles.tutorContainer, { opacity: opacityValue, transform: [{ scale: scaleValue }] }]}>
       <View style={[isUser ? styles.userBubble : styles.tutorBubble]}>
         {renderBubbleContent()}
       </View>
@@ -469,7 +488,7 @@ export function ChatBubble({ text, isUser, timestamp, imageUri, extractedText, p
           <Text style={styles.extractedTextTag}>Text extracted from image</Text>
         </View>
       )}
-    </View>
+    </Animated.View>
   );
 }
 

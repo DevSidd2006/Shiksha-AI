@@ -192,7 +192,7 @@ const generateWithOllama = async (question, studentGrade = 'Class 9') => {
         stream: false,
         options: {
           temperature: 0.6,
-          num_predict: 256,
+          num_predict: 768,
         },
       },
       { timeout: 120000 }
@@ -211,7 +211,7 @@ const generateWithOllama = async (question, studentGrade = 'Class 9') => {
           stream: false,
           options: {
             temperature: 0.4,
-            num_predict: 192,
+            num_predict: 512,
           },
         },
         { timeout: 120000 }
@@ -273,7 +273,7 @@ const generateWithOllama = async (question, studentGrade = 'Class 9') => {
           ],
           options: {
             temperature: 0.4,
-            num_predict: 192,
+            num_predict: 512,
           },
         },
         { timeout: 120000 }
